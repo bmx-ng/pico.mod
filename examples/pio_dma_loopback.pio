@@ -1,0 +1,14 @@
+; Echo DMA-fed command words while applying bit 0 to the LED.
+; Bits 1..31 supply a delay-loop count.
+.pio_version 0
+.program dma_loopback
+
+.wrap_target
+    pull block
+    mov isr, osr
+    push block
+    out pins, 1
+    out x, 31
+delay:
+    jmp x-- delay
+.wrap

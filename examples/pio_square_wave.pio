@@ -1,0 +1,16 @@
+; A deliberately PIO-v0 program shared by RP2040 and RP2350.
+.pio_version 0
+.program square_wave
+
+.wrap_target
+    set pins, 1
+    set x, 31
+high_delay:
+    nop [31]
+    jmp x-- high_delay
+    set pins, 0
+    set x, 31
+low_delay:
+    nop [31]
+    jmp x-- low_delay
+.wrap

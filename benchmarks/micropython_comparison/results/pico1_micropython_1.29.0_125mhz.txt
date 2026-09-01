@@ -1,0 +1,10 @@
+BENCH_HEADER,engine,cpu_hz,test,work_units,microseconds,checksum
+BENCH,micropython,125000000,integer_mix,1000000,43785093,2708169144
+BENCH,micropython,125000000,function_calls,500000,27295355,298169368
+BENCH,micropython,125000000,byte_buffer,512000,13142674,65280000
+BENCH,micropython,125000000,method_calls,300000,22710482,4202558952
+BENCH,micropython,125000000,object_alloc_gc,6400,929584,518400
+BENCH,micropython,125000000,string_build_gc,6400,553402,6400
+BENCH,micropython-viper,125000000,integer_mix,1000000,200032,2708169144
+BENCH,micropython-viper,125000000,byte_buffer,512000,258239,65280000
+BENCH_DONE

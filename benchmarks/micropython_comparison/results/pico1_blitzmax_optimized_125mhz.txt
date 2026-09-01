@@ -1,0 +1,8 @@
+BENCH_HEADER,engine,cpu_hz,test,work_units,microseconds,checksum
+BENCH,blitzmax,125000000,integer_mix,1000000,72000,2708169144
+BENCH,blitzmax,125000000,function_calls,500000,36000,298169368
+BENCH,blitzmax,125000000,byte_buffer,512000,167964,65280000
+BENCH,blitzmax,125000000,method_calls,300000,86400,4202558952
+BENCH,blitzmax,125000000,object_alloc_gc,6400,48424,518400
+BENCH,blitzmax,125000000,string_build_gc,6400,50354,6400
+BENCH_DONE

@@ -1,0 +1,14 @@
+; A CPU-controlled LED worker with a bidirectional command protocol.
+; Bit 0 is the output level; bits 1..31 are a delay-loop count.
+.pio_version 0
+.program fifo_led
+
+.wrap_target
+    pull block
+    mov isr, osr
+    push block
+    out pins, 1
+    out x, 31
+delay:
+    jmp x-- delay
+.wrap
