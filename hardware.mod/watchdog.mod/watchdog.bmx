@@ -26,7 +26,7 @@ Extern "C"
 	WatchdogMaximumDelayMilliseconds. Set pauseOnDebug to pause the countdown while
 	a debugger halts either core or the JTAG connection.
 	End Rem
-	Function WatchdogEnable:Int(delayMilliseconds:UInt, pauseOnDebug:Int) = "bmx_pico_watchdog_enable"
+	Function WatchdogEnable:Int(delayMilliseconds:UInt, pauseOnDebug:Int = True) = "bmx_pico_watchdog_enable"
 
 	Rem
 	bbdoc: Disables the watchdog.
