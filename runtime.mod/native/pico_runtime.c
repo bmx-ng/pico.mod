@@ -12,6 +12,7 @@
 #include "hardware/pwm.h"
 #include "hardware/spi.h"
 #include "hardware/sync.h"
+#include "hardware/watchdog.h"
 #include "pico/stdlib.h"
 
 #ifndef BMX_PICO_ARENA_SIZE
@@ -2384,6 +2385,50 @@ uint32_t bmx_pico_default_led_pin(void) {
 #else
     return UINT32_MAX;
 #endif
+}
+
+uint32_t bmx_pico_watchdog_maximum_delay_ms(void) {
+#if PICO_RP2040
+    return WATCHDOG_LOAD_BITS / 2000u;
+#else
+    return WATCHDOG_LOAD_BITS / 1000u;
+#endif
+}
+
+int32_t bmx_pico_watchdog_enable(uint32_t delay_ms, int32_t pause_on_debug) {
+    if (!delay_ms || delay_ms > bmx_pico_watchdog_maximum_delay_ms()) return 0;
+    watchdog_enable(delay_ms, pause_on_debug != 0);
+    return 1;
+}
+
+void bmx_pico_watchdog_disable(void) {
+    watchdog_disable();
+}
+
+void bmx_pico_watchdog_feed(void) {
+    watchdog_update();
+}
+
+int32_t bmx_pico_watchdog_caused_reboot(void) {
+    return watchdog_caused_reboot() != 0;
+}
+
+int32_t bmx_pico_watchdog_enable_caused_reboot(void) {
+    return watchdog_enable_caused_reboot() != 0;
+}
+
+uint32_t bmx_pico_watchdog_time_remaining_us(void) {
+    return watchdog_get_time_remaining_us();
+}
+
+uint32_t bmx_pico_watchdog_time_remaining_ms(void) {
+    return watchdog_get_time_remaining_ms();
+}
+
+int32_t bmx_pico_watchdog_reboot(uint32_t delay_ms) {
+    if (delay_ms > bmx_pico_watchdog_maximum_delay_ms()) return 0;
+    watchdog_reboot(0, 0, delay_ms);
+    return 1;
 }
 
 void bmx_pico_gpio_init(uint32_t gpio) {

@@ -30,6 +30,7 @@ The namespace includes:
 - `Pico.Hardware.PWM`
 - `Pico.Hardware.SPI`
 - `Pico.Hardware.UART`
+- `Pico.Hardware.Watchdog`
 - `Pico.System.Time`
 - `Pico.IO.StandardIO`
 

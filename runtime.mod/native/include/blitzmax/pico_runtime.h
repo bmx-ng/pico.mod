@@ -423,6 +423,16 @@ uint32_t bmx_pico_arena_high_water(void);
 uint32_t bmx_pico_arena_allocation_count(void);
 uint32_t bmx_pico_arena_failure_count(void);
 
+uint32_t bmx_pico_watchdog_maximum_delay_ms(void);
+int32_t bmx_pico_watchdog_enable(uint32_t delay_ms, int32_t pause_on_debug);
+void bmx_pico_watchdog_disable(void);
+void bmx_pico_watchdog_feed(void);
+int32_t bmx_pico_watchdog_caused_reboot(void);
+int32_t bmx_pico_watchdog_enable_caused_reboot(void);
+uint32_t bmx_pico_watchdog_time_remaining_us(void);
+uint32_t bmx_pico_watchdog_time_remaining_ms(void);
+int32_t bmx_pico_watchdog_reboot(uint32_t delay_ms);
+
 void bmx_pico_gpio_init(uint32_t gpio);
 void bmx_pico_gpio_set_function(uint32_t gpio, int32_t function);
 int32_t bmx_pico_gpio_get_function(uint32_t gpio);

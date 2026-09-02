@@ -96,7 +96,7 @@ if (DEFINED BLITZMAX_PICO_PIO_CMAKE)
     include("${BLITZMAX_PICO_PIO_CMAKE}")
 endif()
 
-target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_stdlib hardware_adc hardware_dma hardware_i2c hardware_pio hardware_pwm hardware_spi hardware_uart)
+target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_stdlib hardware_adc hardware_dma hardware_i2c hardware_pio hardware_pwm hardware_spi hardware_uart hardware_watchdog)
 if (BLITZMAX_PICO_NATIVE_LINK_OPTIONS)
     target_link_options(${BLITZMAX_OUTPUT_NAME} PRIVATE ${BLITZMAX_PICO_NATIVE_LINK_OPTIONS})
 endif()
