@@ -12,5 +12,13 @@ Module Pico.Core
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
 
-' The public surface will be introduced with the Pico target ABI.
+Rem
+bbdoc: Value returned by board-default pin queries when the selected board defines no default pin.
+End Rem
+Const PicoUnavailablePin:UInt = $ffffffff
+
+Rem
+bbdoc: Value returned by board-default controller queries when the selected board defines no default controller.
+End Rem
+Const PicoUnavailableController:Int = -1
 ?

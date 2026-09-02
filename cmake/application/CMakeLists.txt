@@ -19,6 +19,44 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+if (PICO_PLATFORM STREQUAL "rp2040")
+    math(EXPR BLITZMAX_PICO_RAM_BYTES "256 * 1024")
+    math(EXPR BLITZMAX_PICO_AUTO_ARENA_SIZE "192 * 1024")
+elseif (PICO_PLATFORM MATCHES "^rp2350-arm-")
+    math(EXPR BLITZMAX_PICO_RAM_BYTES "512 * 1024")
+    math(EXPR BLITZMAX_PICO_AUTO_ARENA_SIZE "384 * 1024")
+else()
+    message(FATAL_ERROR
+        "The BlitzMax Pico target requires an ARM RP2040 or RP2350 board; "
+        "PICO_BOARD='${PICO_BOARD}' selected PICO_PLATFORM='${PICO_PLATFORM}'")
+endif()
+
+if (NOT DEFINED PICO_FLASH_SIZE_BYTES)
+    message(FATAL_ERROR
+        "Pico SDK board '${PICO_BOARD}' does not define PICO_FLASH_SIZE_BYTES")
+endif()
+math(EXPR BLITZMAX_PICO_FLASH_BYTES "${PICO_FLASH_SIZE_BYTES}")
+
+if (BLITZMAX_PICO_ARENA_SIZE STREQUAL "auto")
+    set(BLITZMAX_PICO_RESOLVED_ARENA_SIZE ${BLITZMAX_PICO_AUTO_ARENA_SIZE})
+else()
+    math(EXPR BLITZMAX_PICO_RESOLVED_ARENA_SIZE "${BLITZMAX_PICO_ARENA_SIZE}")
+endif()
+if (BLITZMAX_PICO_RESOLVED_ARENA_SIZE LESS 1024)
+    message(FATAL_ERROR "The BlitzMax Pico managed heap must be at least 1 KiB")
+endif()
+if (BLITZMAX_PICO_RESOLVED_ARENA_SIZE GREATER_EQUAL BLITZMAX_PICO_RAM_BYTES)
+    message(FATAL_ERROR
+        "The BlitzMax Pico managed heap must leave room for application and SDK RAM")
+endif()
+
+set(BLITZMAX_PICO_RAM_BYTES ${BLITZMAX_PICO_RAM_BYTES}
+    CACHE INTERNAL "BlitzMax Pico internal SRAM budget" FORCE)
+set(BLITZMAX_PICO_FLASH_BYTES ${BLITZMAX_PICO_FLASH_BYTES}
+    CACHE INTERNAL "BlitzMax Pico board flash capacity" FORCE)
+set(BLITZMAX_PICO_RESOLVED_ARENA_SIZE ${BLITZMAX_PICO_RESOLVED_ARENA_SIZE}
+    CACHE INTERNAL "Resolved BlitzMax Pico managed heap size" FORCE)
+
 set(PICO_MODULE_ROOT "${BLITZMAX_PICO_SDK}/mod/pico.mod")
 set(BRL_BLITZ_ROOT "${BLITZMAX_PICO_SDK}/mod/brl.mod/blitz.mod")
 set(GENERATED_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -64,7 +102,7 @@ if (BLITZMAX_PICO_NATIVE_LINK_OPTIONS)
 endif()
 target_compile_definitions(${BLITZMAX_OUTPUT_NAME} PRIVATE
     RYU_OPTIMIZE_SIZE=1
-    BMX_PICO_ARENA_SIZE=${BLITZMAX_PICO_ARENA_SIZE}u
+    BMX_PICO_ARENA_SIZE=${BLITZMAX_PICO_RESOLVED_ARENA_SIZE}u
 )
 target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
     "${PICO_MODULE_ROOT}/runtime.mod/native/include"
