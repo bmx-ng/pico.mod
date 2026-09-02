@@ -1,6 +1,10 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Module Pico.Tests.NativeGraph
+?pico
 
 Import "../native/native_value.h"
 Import "../native/native_value.c"
@@ -14,3 +18,4 @@ Extern
 	Function NativeCValue:Int(value:Int) = "bmx_pico_native_c_value"
 	Function NativeCPPValue:Int(value:Int) = "bmx_pico_native_cpp_value"
 End Extern
+?

@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Inter-integrated circuit controllers for Raspberry Pi Pico targets.
 End Rem
 Module Pico.Hardware.I2C
+?pico
 
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
@@ -50,3 +54,4 @@ Extern "C"
 	Function I2CWriteRawBlocking:Int(controller:Int, data:Byte Ptr, length:Int) = "bmx_pico_i2c_write_raw_blocking"
 	Function I2CReadRawBlocking:Int(controller:Int, data:Byte Ptr, length:Int) = "bmx_pico_i2c_read_raw_blocking"
 End Extern
+?

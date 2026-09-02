@@ -1,6 +1,10 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Module Pico.Tests.NativeGraph
+?pico
 
 ModuleInfo "CC_OPTS: -DBMX_PICO_NATIVE_COMMON=11"
 ModuleInfo "C_OPTS: -DBMX_PICO_NATIVE_C_ONLY=13"
@@ -18,3 +22,4 @@ Function NativeGraphValue:Int(value:Int)
 	If payload = Null Or IncbinLen("payload.txt") <> 21 Then Return -1
 	Return NativeCValue(value) + NativeCPPValue(value) + payload[0] + IncbinLen("payload.txt")
 End Function
+?

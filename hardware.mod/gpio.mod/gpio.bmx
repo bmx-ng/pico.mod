@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: General-purpose digital input and output for Raspberry Pi Pico targets.
 End Rem
 Module Pico.Hardware.GPIO
+?pico
 
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
@@ -68,3 +72,4 @@ Extern "C"
 	Function GPIOPendingIRQEvents:UInt(pin:UInt) = "bmx_pico_gpio_pending_irq_events"
 	Function GPIOTakeIRQEvents:UInt(pin:UInt) = "bmx_pico_gpio_take_irq_events"
 End Extern
+?

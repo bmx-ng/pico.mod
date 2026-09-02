@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Pulse-width modulation for Raspberry Pi Pico targets.
 End Rem
 Module Pico.Hardware.PWM
+?pico
 
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
@@ -53,3 +57,4 @@ Extern "C"
 	Function PWMPendingWrapEvents:UInt(slice:UInt) = "bmx_pico_pwm_pending_wrap_events"
 	Function PWMTakeWrapEvents:UInt(slice:UInt) = "bmx_pico_pwm_take_wrap_events"
 End Extern
+?

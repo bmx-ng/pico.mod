@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Prototype heap, precise Object collection, and allocation metrics for Pico targets.
 End Rem
 Module Pico.Runtime.Memory
+?pico
 
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
@@ -65,3 +69,4 @@ Extern "C"
 	Function ExceptionMaxDepth:UInt() = "bmx_pico_exception_max_depth"
 	Function ExceptionUnhandledCount:UInt() = "bmx_pico_exception_unhandled_count"
 End Extern
+?

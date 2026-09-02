@@ -7,6 +7,9 @@
 /.vscode/
 *.i
 *.i2
+*.a
+*.bmxbuild
+*.bmxbuild.stamp
 *.bin
 *.dis
 *.elf

@@ -1,6 +1,10 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Module Pico.Tests.ImportedTypes
+?pico
 
 Import "types/counter.bmx"
 
@@ -41,3 +45,4 @@ End Function
 Function SharedMetadataTotal:Int()
 	Return sharedMetadata[0].values[0] + sharedMetadata[0].values[1]
 End Function
+?

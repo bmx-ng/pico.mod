@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Direct-memory-access channels for Raspberry Pi Pico targets.
 End Rem
 Module Pico.Hardware.DMA
+?pico
 
 ModuleInfo "Version: 0.3"
 ModuleInfo "License: zlib/libpng"
@@ -372,3 +376,4 @@ Function DMACopy:TDMATransfer(source:TDMABuffer, destination:TDMABuffer, ..
 			irqLine, source, destination) Then Return Null
 	Return transfer
 End Function
+?

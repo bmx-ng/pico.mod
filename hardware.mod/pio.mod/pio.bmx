@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Programmable I/O controllers for Raspberry Pi Pico targets.
 End Rem
 Module Pico.Hardware.PIO
+?pico
 
 ModuleInfo "Version: 0.4"
 ModuleInfo "License: zlib/libpng"
@@ -220,3 +224,4 @@ Function PIOStateMachineInitProgram:Int(controller:Int, stateMachine:UInt, progr
 	If Not program Then Return PIOErrorInvalidArgument
 	Return _PIOStateMachineInitImportedProgram(controller, stateMachine, program.handle, offset)
 End Function
+?
