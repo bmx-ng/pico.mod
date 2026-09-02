@@ -12,7 +12,12 @@ Module Pico.Board.Pico
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
 
+Import Pico.Core
+
 Extern "C"
+	Rem
+	bbdoc: Returns the selected board's default LED pin, or PicoUnavailablePin if it has none.
+	End Rem
 	Function DefaultLEDPin:UInt() = "bmx_pico_default_led_pin"
 End Extern
 ?

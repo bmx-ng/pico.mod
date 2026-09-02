@@ -5,12 +5,16 @@ SuperStrict
 
 Rem
 bbdoc: Serial peripheral interface controllers for Raspberry Pi Pico targets.
+about: Board-default pin queries return PicoUnavailablePin when the selected
+board does not define that pin.
 End Rem
 Module Pico.Hardware.SPI
 ?pico
 
 ModuleInfo "Version: 0.2"
 ModuleInfo "License: zlib/libpng"
+
+Import Pico.Core
 
 Const SPIController0:Int = 0
 Const SPIController1:Int = 1
@@ -24,6 +28,9 @@ Const SPIBitOrderMSBFirst:UInt = 1
 Const SPIErrorInvalidArgument:Int = -5
 
 Extern "C"
+	Rem
+	bbdoc: Returns the board's default SPI controller, or PicoUnavailableController if none is defined.
+	End Rem
 	Function SPIDefaultController:Int() = "bmx_pico_spi_default_controller"
 	Function SPIDefaultRXPin:UInt() = "bmx_pico_spi_default_rx_pin"
 	Function SPIDefaultTXPin:UInt() = "bmx_pico_spi_default_tx_pin"

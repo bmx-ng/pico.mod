@@ -6,17 +6,22 @@ build pipeline, and the Raspberry Pi Pico SDK.
 
 ## Supported boards
 
-- Raspberry Pi Pico and other RP2040 boards selected with `-board pico`
-- Raspberry Pi Pico 2 and other RP2350 boards selected with `-board pico2`
+- Raspberry Pi Pico, selected with `-board pico`
+- Raspberry Pi Pico 2, selected with `-board pico2`
+- Other RP2040 and ARM RP2350 boards defined by the selected Pico SDK
 
-Both targets currently use the ARM toolchain (`-g arm`).
+Pass the Pico SDK board-definition name to `-board`, for example
+`-board adafruit_qtpy_rp2040`. Custom board definitions can be supplied through
+`PICO_BOARD_HEADER_DIRS` and `PICO_BOARD_CMAKE_DIRS`. All targets currently use
+the ARM toolchain (`-g arm`).
 
 ## Modules
 
 The namespace includes:
 
 - `Pico.Core` and `Pico.Runtime`
-- `Pico.Board.Pico` and `Pico.Board.Pico2`
+- `Pico.Board` for defaults supplied by the selected SDK board
+- `Pico.Board.Pico` and `Pico.Board.Pico2` compatibility modules
 - `Pico.Hardware.GPIO`
 - `Pico.Hardware.ADC`
 - `Pico.Hardware.DMA`
@@ -75,16 +80,18 @@ line information. Debug-probe launching is a separate OpenOCD/GDB step.
 | `-l pico` | Select the Pico target |
 | `-g arm` | Select the ARM architecture |
 | `-board pico` | Build for RP2040/Pico |
-| `-board pico2` | Build for RP2350/Pico 2; this is the default Pico board |
+| `-board pico2` | Build for RP2350/Pico 2; this is the default |
+| `-board <name>` | Use another board definition from the selected Pico SDK |
 | `-heap auto` | Use the board-aware managed heap; this is the default |
 | `-heap <size>` | Set the managed heap in bytes or with `k`, `KiB`, `m`, or `MiB` |
 | `-x` | Upload, verify, and start through `picotool` |
 | `-d` | Build with source-level GDB information |
 | `-r` | Build optimised release firmware |
 
-The automatic managed heap is 192 KiB on Pico and 384 KiB on Pico 2. After
-linking, bmk reports flash use, managed-heap use, other RAM use, and remaining
-RAM headroom.
+The automatic managed heap is 192 KiB on RP2040 and 384 KiB on ARM RP2350.
+External PSRAM is not used automatically. After linking, bmk reports the
+board-configured flash capacity, managed-heap use, other internal RAM use, and
+remaining internal-RAM headroom.
 
 ## Tool configuration
 
@@ -97,11 +104,14 @@ Tool locations can be set in `custom.bmk`:
 #addoption pico.ninja "/path/to/ninja"
 #addoption pico.picotool "/path/to/picotool"
 #addoption pico.pioasm "/path/to/pioasm"
+#addoption pico.board.header.dirs "/path/to/custom/board/headers"
+#addoption pico.board.cmake.dirs "/path/to/custom/board/cmake"
 ```
 
 The corresponding environment variables are `PICO_SDK_PATH`,
 `PICO_TOOLCHAIN_PATH`, `PICO_CMAKE`, `PICO_NINJA`, `PICOTOOL_DIR`, and
-`PICO_PIOASM_DIR`.
+`PICO_PIOASM_DIR`, plus `PICO_BOARD_HEADER_DIRS` and
+`PICO_BOARD_CMAKE_DIRS` for custom boards.
 
 ## Current scope
 

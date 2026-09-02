@@ -4,9 +4,9 @@
 SuperStrict
 
 Rem
-bbdoc: Board definitions for Raspberry Pi Pico 2.
+bbdoc: Definitions supplied by the selected Raspberry Pi Pico SDK board.
 End Rem
-Module Pico.Board.Pico2
+Module Pico.Board
 ?pico
 
 ModuleInfo "Version: 0.1"

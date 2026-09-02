@@ -5,12 +5,16 @@ SuperStrict
 
 Rem
 bbdoc: Hardware universal asynchronous receivers/transmitters for Raspberry Pi Pico targets.
+about: Board-default pin queries return PicoUnavailablePin when the selected
+board does not define that pin.
 End Rem
 Module Pico.Hardware.UART
 ?pico
 
 ModuleInfo "Version: 0.2"
 ModuleInfo "License: zlib/libpng"
+
+Import Pico.Core
 
 Const UARTController0:Int = 0
 Const UARTController1:Int = 1
@@ -26,6 +30,9 @@ Const UARTErrorOverrun:UInt = $8
 Const UARTErrorInvalidArgument:Int = -5
 
 Extern "C"
+	Rem
+	bbdoc: Returns the board's default UART controller, or PicoUnavailableController if none is defined.
+	End Rem
 	Function UARTDefaultController:Int() = "bmx_pico_uart_default_controller"
 	Function UARTDefaultTXPin:UInt() = "bmx_pico_uart_default_tx_pin"
 	Function UARTDefaultRXPin:UInt() = "bmx_pico_uart_default_rx_pin"

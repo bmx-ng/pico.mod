@@ -2379,7 +2379,11 @@ void bmx_pico_stdio_flush(void) {
 }
 
 uint32_t bmx_pico_default_led_pin(void) {
+#ifdef PICO_DEFAULT_LED_PIN
     return PICO_DEFAULT_LED_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 void bmx_pico_gpio_init(uint32_t gpio) {
@@ -2906,15 +2910,27 @@ static i2c_inst_t *bmx_pico_i2c_instance(int32_t controller) {
 }
 
 int32_t bmx_pico_i2c_default_controller(void) {
+#ifdef PICO_DEFAULT_I2C
     return PICO_DEFAULT_I2C;
+#else
+    return -1;
+#endif
 }
 
 uint32_t bmx_pico_i2c_default_sda_pin(void) {
+#ifdef PICO_DEFAULT_I2C_SDA_PIN
     return PICO_DEFAULT_I2C_SDA_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 uint32_t bmx_pico_i2c_default_scl_pin(void) {
+#ifdef PICO_DEFAULT_I2C_SCL_PIN
     return PICO_DEFAULT_I2C_SCL_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 int32_t bmx_pico_i2c_configure_pins(int32_t controller, uint32_t sda_pin,
@@ -3026,23 +3042,43 @@ static spi_inst_t *bmx_pico_spi_instance(int32_t controller) {
 }
 
 int32_t bmx_pico_spi_default_controller(void) {
+#ifdef PICO_DEFAULT_SPI
     return PICO_DEFAULT_SPI;
+#else
+    return -1;
+#endif
 }
 
 uint32_t bmx_pico_spi_default_rx_pin(void) {
+#ifdef PICO_DEFAULT_SPI_RX_PIN
     return PICO_DEFAULT_SPI_RX_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 uint32_t bmx_pico_spi_default_tx_pin(void) {
+#ifdef PICO_DEFAULT_SPI_TX_PIN
     return PICO_DEFAULT_SPI_TX_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 uint32_t bmx_pico_spi_default_sck_pin(void) {
+#ifdef PICO_DEFAULT_SPI_SCK_PIN
     return PICO_DEFAULT_SPI_SCK_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 uint32_t bmx_pico_spi_default_csn_pin(void) {
+#ifdef PICO_DEFAULT_SPI_CSN_PIN
     return PICO_DEFAULT_SPI_CSN_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 static int32_t bmx_pico_spi_pin_valid(int32_t controller, uint32_t pin, uint32_t role) {
@@ -3189,15 +3225,27 @@ static uart_inst_t *bmx_pico_uart_instance(int32_t controller) {
 }
 
 int32_t bmx_pico_uart_default_controller(void) {
+#ifdef PICO_DEFAULT_UART
     return PICO_DEFAULT_UART;
+#else
+    return -1;
+#endif
 }
 
 uint32_t bmx_pico_uart_default_tx_pin(void) {
+#ifdef PICO_DEFAULT_UART_TX_PIN
     return PICO_DEFAULT_UART_TX_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 uint32_t bmx_pico_uart_default_rx_pin(void) {
+#ifdef PICO_DEFAULT_UART_RX_PIN
     return PICO_DEFAULT_UART_RX_PIN;
+#else
+    return UINT32_MAX;
+#endif
 }
 
 uint32_t bmx_pico_uart_default_baudrate(void) {

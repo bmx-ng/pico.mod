@@ -12,6 +12,8 @@ Module Pico.Hardware.I2C
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
 
+Import Pico.Core
+
 Const I2CController0:Int = 0
 Const I2CController1:Int = 1
 
@@ -24,8 +26,17 @@ Const I2CErrorTimeout:Int = -2
 Const I2CErrorInvalidArgument:Int = -5
 
 Extern "C"
+	Rem
+	bbdoc: Returns the board's default I2C controller, or PicoUnavailableController if none is defined.
+	End Rem
 	Function I2CDefaultController:Int() = "bmx_pico_i2c_default_controller"
+	Rem
+	bbdoc: Returns the board's default I2C SDA pin, or PicoUnavailablePin if none is defined.
+	End Rem
 	Function I2CDefaultSDAPin:UInt() = "bmx_pico_i2c_default_sda_pin"
+	Rem
+	bbdoc: Returns the board's default I2C SCL pin, or PicoUnavailablePin if none is defined.
+	End Rem
 	Function I2CDefaultSCLPin:UInt() = "bmx_pico_i2c_default_scl_pin"
 
 	Rem
