@@ -11,9 +11,14 @@
 #include "hardware/pio.h"
 #include "hardware/pwm.h"
 #include "hardware/spi.h"
+#include "hardware/structs/ioqspi.h"
+#include "hardware/structs/sio.h"
+#include "hardware/structs/timer.h"
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
+#include "pico/bootrom.h"
 #include "pico/stdlib.h"
+#include "pico/unique_id.h"
 
 #ifndef BMX_PICO_ARENA_SIZE
 #define BMX_PICO_ARENA_SIZE (16u * 1024u)
@@ -2428,6 +2433,60 @@ uint32_t bmx_pico_watchdog_time_remaining_ms(void) {
 int32_t bmx_pico_watchdog_reboot(uint32_t delay_ms) {
     if (delay_ms > bmx_pico_watchdog_maximum_delay_ms()) return 0;
     watchdog_reboot(0, 0, delay_ms);
+    return 1;
+}
+
+const BMXPicoString *bmx_pico_unique_board_id(void) {
+    char identifier[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2u + 1u];
+    pico_get_unique_board_id_string(identifier, sizeof(identifier));
+    return bmx_pico_string_from_ascii(identifier, PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2);
+}
+
+BMXPicoArray *bmx_pico_unique_board_id_bytes(void) {
+    pico_unique_board_id_t identifier;
+    pico_get_unique_board_id(&identifier);
+    BMXPicoArray *result = bmx_pico_array_new_1d(PICO_UNIQUE_BOARD_ID_SIZE_BYTES,
+        sizeof(uint8_t), BMX_PICO_ARRAY_ELEMENT_VALUE, NULL, NULL);
+    if (result != &bmx_pico_empty_array) {
+        memcpy(bmx_pico_array_data(result), identifier.id, PICO_UNIQUE_BOARD_ID_SIZE_BYTES);
+    }
+    return result;
+}
+
+#define BMX_PICO_BOOTSEL_CS_PIN_INDEX 1u
+#if PICO_RP2040
+#define BMX_PICO_BOOTSEL_CS_BIT (1u << BMX_PICO_BOOTSEL_CS_PIN_INDEX)
+#else
+#define BMX_PICO_BOOTSEL_CS_BIT SIO_GPIO_HI_IN_QSPI_CSN_BITS
+#endif
+
+int32_t __no_inline_not_in_flash_func(bmx_pico_bootsel_button_pressed)(void) {
+    if (get_core_num() != 0) return 0;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    hw_write_masked(&ioqspi_hw->io[BMX_PICO_BOOTSEL_CS_PIN_INDEX].ctrl,
+        GPIO_OVERRIDE_LOW << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+        IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+    uint32_t start = timer_hw->timerawl;
+    while ((uint32_t)(timer_hw->timerawl - start) <= 8u) {
+        tight_loop_contents();
+    }
+    int32_t pressed = (sio_hw->gpio_hi_in & BMX_PICO_BOOTSEL_CS_BIT) == 0;
+    hw_write_masked(&ioqspi_hw->io[BMX_PICO_BOOTSEL_CS_PIN_INDEX].ctrl,
+        GPIO_OVERRIDE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+        IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+    restore_interrupts(interrupt_state);
+    return pressed;
+}
+
+int32_t bmx_pico_device_reboot(uint32_t delay_ms) {
+    return bmx_pico_watchdog_reboot(delay_ms);
+}
+
+int32_t bmx_pico_device_reboot_to_bootsel(int32_t activity_pin, int32_t activity_pin_active_low,
+        int32_t disable_mass_storage, int32_t disable_picoboot) {
+    if (activity_pin < -1 || activity_pin >= (int32_t)NUM_BANK0_GPIOS || get_core_num() != 0) return 0;
+    uint32_t disable_mask = (disable_mass_storage ? 1u : 0u) | (disable_picoboot ? 2u : 0u);
+    rom_reset_usb_boot_extra(activity_pin, disable_mask, activity_pin_active_low != 0);
     return 1;
 }
 

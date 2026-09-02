@@ -433,6 +433,13 @@ uint32_t bmx_pico_watchdog_time_remaining_us(void);
 uint32_t bmx_pico_watchdog_time_remaining_ms(void);
 int32_t bmx_pico_watchdog_reboot(uint32_t delay_ms);
 
+const BMXPicoString *bmx_pico_unique_board_id(void);
+BMXPicoArray *bmx_pico_unique_board_id_bytes(void);
+int32_t bmx_pico_bootsel_button_pressed(void);
+int32_t bmx_pico_device_reboot(uint32_t delay_ms);
+int32_t bmx_pico_device_reboot_to_bootsel(int32_t activity_pin, int32_t activity_pin_active_low,
+    int32_t disable_mass_storage, int32_t disable_picoboot);
+
 void bmx_pico_gpio_init(uint32_t gpio);
 void bmx_pico_gpio_set_function(uint32_t gpio, int32_t function);
 int32_t bmx_pico_gpio_get_function(uint32_t gpio);

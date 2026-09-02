@@ -32,6 +32,7 @@ The namespace includes:
 - `Pico.Hardware.UART`
 - `Pico.Hardware.Watchdog`
 - `Pico.System.Time`
+- `Pico.System.Device`
 - `Pico.IO.StandardIO`
 
 The target also reuses compatible standard modules such as `BRL.Blitz`,
