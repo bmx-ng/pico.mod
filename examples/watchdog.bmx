@@ -13,7 +13,7 @@ checksPassed :& Not WatchdogEnable(maximumDelay + 1, True)
 checksPassed :& Not WatchdogReboot(maximumDelay + 1)
 
 WatchdogDisable()
-checksPassed :& WatchdogEnable(250, True)
+checksPassed :& WatchdogEnable(250)
 Local remainingBeforeFeed:UInt = WatchdogRemainingMilliseconds()
 Delay 10
 WatchdogFeed()
