@@ -1,6 +1,10 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Module Pico.Tests.Generics
+?pico
 
 Public
 
@@ -35,3 +39,4 @@ Function SelectValue<T>:T(condition:Int, whenTrue:T, whenFalse:T)
 	If condition Then Return whenTrue
 	Return whenFalse
 End Function
+?

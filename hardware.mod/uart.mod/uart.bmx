@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Hardware universal asynchronous receivers/transmitters for Raspberry Pi Pico targets.
 End Rem
 Module Pico.Hardware.UART
+?pico
 
 ModuleInfo "Version: 0.2"
 ModuleInfo "License: zlib/libpng"
@@ -56,3 +60,4 @@ Extern "C"
 	Function UARTGetErrors:UInt(controller:Int) = "bmx_pico_uart_get_errors"
 	Function UARTClearErrors(controller:Int) = "bmx_pico_uart_clear_errors"
 End Extern
+?

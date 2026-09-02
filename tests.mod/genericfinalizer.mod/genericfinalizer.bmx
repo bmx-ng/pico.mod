@@ -1,6 +1,10 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Module Pico.Tests.GenericFinalizer
+?pico
 
 Public
 
@@ -44,3 +48,4 @@ End Type
 
 Type TGenericInheritedFinalizer<T> Extends TGenericFinalizerBase<T>
 End Type
+?

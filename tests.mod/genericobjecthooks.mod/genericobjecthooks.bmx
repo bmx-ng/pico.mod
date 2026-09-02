@@ -1,6 +1,10 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Module Pico.Tests.GenericObjectHooks
+?pico
 
 Public
 
@@ -66,3 +70,4 @@ End Type
 
 Type TGenericHookInherited<T> Extends TGenericHookBase<T>
 End Type
+?

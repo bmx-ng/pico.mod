@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Analogue-to-digital conversion for Raspberry Pi Pico targets.
 End Rem
 Module Pico.Hardware.ADC
+?pico
 
 ModuleInfo "Version: 0.2"
 ModuleInfo "License: zlib/libpng"
@@ -61,3 +65,4 @@ Extern "C"
 	End Rem
 	Function ADCDREQ:UInt() = "bmx_pico_adc_dreq"
 End Extern
+?

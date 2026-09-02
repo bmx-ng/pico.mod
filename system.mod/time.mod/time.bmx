@@ -1,9 +1,13 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Rem
 bbdoc: Monotonic time, deadlines, and sleep operations for Pico targets.
 End Rem
 Module Pico.System.Time
+?pico
 
 ModuleInfo "Version: 0.2"
 ModuleInfo "License: zlib/libpng"
@@ -40,3 +44,4 @@ Extern "C"
 	Function RemainingAlarmMicroseconds:Long(handle:Int) = "bmx_pico_alarm_remaining_us"
 	Function RemainingAlarmMilliseconds:Int(handle:Int) = "bmx_pico_alarm_remaining_ms"
 End Extern
+?

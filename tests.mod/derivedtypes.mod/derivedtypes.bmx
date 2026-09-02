@@ -1,6 +1,10 @@
+' Copyright (c) 2026 Bruce A Henderson and contributors
+' SPDX-License-Identifier: Zlib
+
 SuperStrict
 
 Module Pico.Tests.DerivedTypes
+?pico
 
 Import Pico.Tests.ImportedTypes
 
@@ -54,3 +58,4 @@ End Function
 Function FinalizedModuleCounterCount:Int()
 	Return finalizedModuleCounters
 End Function
+?
