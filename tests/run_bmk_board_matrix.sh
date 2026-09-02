@@ -16,7 +16,7 @@ examples=(
 	string_float_split_join_memory string_integer_conversion
 	string_integer_split_join_memory string_memory string_split_join_memory
 	string_unicode_case_memory struct_enum_memory timer_alarm uart_controller
-	using_memory watchdog
+	using_memory watchdog array_concat_memory random_pico
 )
 
 for board in pico pico2; do

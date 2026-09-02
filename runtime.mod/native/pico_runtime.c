@@ -346,6 +346,21 @@ BMXPicoArray *bmx_pico_array_new_1d(int32_t length, uint32_t element_size, uint1
     return array;
 }
 
+BMXPicoArray *bmx_pico_array_from_data(int32_t length, uint32_t element_size,
+    uint16_t element_kind, BMXPicoArrayInitializer initializer,
+    const BMXPicoValueDescriptor *element_descriptor, const void *data) {
+    if (length > 0 && !data) {
+        bmx_pico_record_array_failure();
+        return &bmx_pico_empty_array;
+    }
+    BMXPicoArray *array = bmx_pico_array_new_1d(length, element_size, element_kind,
+        initializer, element_descriptor);
+    if (array != &bmx_pico_empty_array && length > 0) {
+        memcpy(bmx_pico_array_data(array), data, (size_t)length * element_size);
+    }
+    return array;
+}
+
 BMXPicoArray *bmx_pico_array_concat(BMXPicoArray *left, BMXPicoArray *right) {
     if (!left || !right) {
         bmx_pico_record_array_failure();

@@ -323,6 +323,7 @@ uint64_t bmx_pico_enum_from_string(const BMXPicoEnumDescriptor *descriptor, cons
 uint32_t bmx_pico_enum_failure_count(void);
 
 BMXPicoArray *bmx_pico_array_new_1d(int32_t length, uint32_t element_size, uint16_t element_kind, BMXPicoArrayInitializer initializer, const BMXPicoValueDescriptor *element_descriptor);
+BMXPicoArray *bmx_pico_array_from_data(int32_t length, uint32_t element_size, uint16_t element_kind, BMXPicoArrayInitializer initializer, const BMXPicoValueDescriptor *element_descriptor, const void *data);
 BMXPicoArray *bmx_pico_array_concat(BMXPicoArray *left, BMXPicoArray *right);
 void bbArrayCopy(BBARRAY src, int src_pos, BBARRAY dst, int dst_pos, int length);
 BMXPicoArray *bmx_pico_array_slice(BMXPicoArray *array, int32_t begin, int32_t end,
