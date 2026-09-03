@@ -17,6 +17,7 @@
 #include "hardware/sync.h"
 #include "hardware/watchdog.h"
 #include "pico/bootrom.h"
+#include "pico/aon_timer.h"
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
 
@@ -2810,6 +2811,227 @@ int32_t bmx_pico_alarm_remaining_ms(int32_t handle) {
     alarm_id_t id = slot && slot->state == BMX_PICO_ALARM_ARMED ? slot->alarm_id : 0;
     restore_interrupts(interrupt_state);
     return id ? remaining_alarm_time_ms(id) : -1;
+}
+
+static int32_t bmx_pico_calendar_days_in_month(int32_t year, int32_t month) {
+    static const uint8_t days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int32_t result = days[month - 1];
+    if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) ++result;
+    return result;
+}
+
+static int32_t bmx_pico_calendar_valid(const BMXPicoCalendarDateTime *date_time) {
+    if (!date_time || date_time->year < 1 || date_time->year > 9999 ||
+        date_time->month < 1 || date_time->month > 12 ||
+        date_time->day < 1 || date_time->day > bmx_pico_calendar_days_in_month(date_time->year, date_time->month) ||
+        date_time->hour < 0 || date_time->hour > 23 || date_time->minute < 0 || date_time->minute > 59 ||
+        date_time->second < 0 || date_time->second > 59 ||
+        date_time->millisecond < 0 || date_time->millisecond > 999) return 0;
+    return 1;
+}
+
+static int64_t bmx_pico_calendar_days_from_civil(int32_t year, uint32_t month, uint32_t day) {
+    year -= month <= 2;
+    int32_t era = (year >= 0 ? year : year - 399) / 400;
+    uint32_t year_of_era = (uint32_t)(year - era * 400);
+    uint32_t day_of_year = (153u * (month + (month > 2 ? (uint32_t)-3 : 9u)) + 2u) / 5u + day - 1u;
+    uint32_t day_of_era = year_of_era * 365u + year_of_era / 4u - year_of_era / 100u + day_of_year;
+    return (int64_t)era * 146097 + (int64_t)day_of_era - 719468;
+}
+
+static void bmx_pico_calendar_civil_from_days(int64_t days, int32_t *year, int32_t *month, int32_t *day) {
+    days += 719468;
+    int64_t era = (days >= 0 ? days : days - 146096) / 146097;
+    uint32_t day_of_era = (uint32_t)(days - era * 146097);
+    uint32_t year_of_era = (day_of_era - day_of_era / 1460u + day_of_era / 36524u - day_of_era / 146096u) / 365u;
+    int32_t y = (int32_t)year_of_era + (int32_t)era * 400;
+    uint32_t day_of_year = day_of_era - (365u * year_of_era + year_of_era / 4u - year_of_era / 100u);
+    uint32_t month_prime = (5u * day_of_year + 2u) / 153u;
+    uint32_t d = day_of_year - (153u * month_prime + 2u) / 5u + 1u;
+    uint32_t m = month_prime + (month_prime < 10u ? 3u : (uint32_t)-9);
+    y += m <= 2u;
+    *year = y;
+    *month = (int32_t)m;
+    *day = (int32_t)d;
+}
+
+int32_t bmx_pico_datetime_to_epoch(const BMXPicoCalendarDateTime *date_time,
+    int64_t *seconds, int32_t *milliseconds) {
+    if (!seconds || !milliseconds || !bmx_pico_calendar_valid(date_time)) return 0;
+    int64_t value = bmx_pico_calendar_days_from_civil(date_time->year,
+        (uint32_t)date_time->month, (uint32_t)date_time->day) * 86400;
+    value += date_time->hour * 3600 + date_time->minute * 60 + date_time->second;
+    if (!date_time->utc) {
+        value -= (int64_t)date_time->offset * 60;
+        if (date_time->dst == 1) value -= 3600;
+    }
+    *seconds = value;
+    *milliseconds = date_time->millisecond;
+    return 1;
+}
+
+int32_t bmx_pico_datetime_from_epoch(int64_t seconds, int32_t milliseconds,
+    BMXPicoCalendarDateTime *date_time) {
+    if (!date_time || milliseconds < 0 || milliseconds > 999) return 0;
+    int64_t days = seconds / 86400;
+    int64_t within_day = seconds % 86400;
+    if (within_day < 0) {
+        within_day += 86400;
+        --days;
+    }
+    int32_t year, month, day;
+    bmx_pico_calendar_civil_from_days(days, &year, &month, &day);
+    if (year < 1 || year > 9999) return 0;
+    date_time->year = year;
+    date_time->month = month;
+    date_time->day = day;
+    date_time->hour = (int32_t)(within_day / 3600);
+    date_time->minute = (int32_t)((within_day / 60) % 60);
+    date_time->second = (int32_t)(within_day % 60);
+    date_time->millisecond = milliseconds;
+    date_time->utc = 1;
+    date_time->offset = 0;
+    date_time->dst = 0;
+    return 1;
+}
+
+static int32_t bmx_pico_calendar_to_hardware(const BMXPicoCalendarDateTime *date_time,
+    int64_t *seconds, int32_t *milliseconds, struct tm *calendar) {
+    if (!bmx_pico_datetime_to_epoch(date_time, seconds, milliseconds) || *seconds < 0) return 0;
+    BMXPicoCalendarDateTime utc;
+    if (!bmx_pico_datetime_from_epoch(*seconds, *milliseconds, &utc) || utc.year > 4095) return 0;
+    memset(calendar, 0, sizeof(*calendar));
+    calendar->tm_year = utc.year - 1900;
+    calendar->tm_mon = utc.month - 1;
+    calendar->tm_mday = utc.day;
+    calendar->tm_hour = utc.hour;
+    calendar->tm_min = utc.minute;
+    calendar->tm_sec = utc.second;
+    calendar->tm_wday = (int)((*seconds / 86400 + 4) % 7);
+    calendar->tm_yday = (int)(bmx_pico_calendar_days_from_civil(utc.year, (uint32_t)utc.month,
+        (uint32_t)utc.day) - bmx_pico_calendar_days_from_civil(utc.year, 1u, 1u));
+    return 1;
+}
+
+static volatile uint32_t bmx_pico_calendar_alarm_events;
+
+static void bmx_pico_calendar_alarm_handler(void) {
+    /* Calendar alarms are one-shot at the BlitzMax API. Explicitly disable the
+       source before publishing the event: on RP2040 an exact calendar match
+       otherwise remains asserted throughout the matching second. */
+    aon_timer_disable_alarm();
+    if (bmx_pico_calendar_alarm_events != UINT32_MAX) ++bmx_pico_calendar_alarm_events;
+}
+
+int32_t bmx_pico_calendar_start(const BMXPicoCalendarDateTime *date_time) {
+    if (get_core_num() != 0) return 0;
+    int64_t seconds;
+    int32_t milliseconds;
+    struct tm calendar;
+    if (!bmx_pico_calendar_to_hardware(date_time, &seconds, &milliseconds, &calendar)) return 0;
+#if HAS_RP2040_RTC
+    return aon_timer_start_calendar(&calendar);
+#else
+    struct timespec value = { .tv_sec = (time_t)seconds, .tv_nsec = milliseconds * 1000000L };
+    return aon_timer_start(&value);
+#endif
+}
+
+void bmx_pico_calendar_stop(void) {
+    if (get_core_num() != 0) return;
+    aon_timer_disable_alarm();
+    aon_timer_stop();
+    while (aon_timer_is_running()) tight_loop_contents();
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    bmx_pico_calendar_alarm_events = 0;
+    restore_interrupts(interrupt_state);
+}
+
+int32_t bmx_pico_calendar_set(const BMXPicoCalendarDateTime *date_time) {
+    if (get_core_num() != 0) return 0;
+    int64_t seconds;
+    int32_t milliseconds;
+    struct tm calendar;
+    if (!bmx_pico_calendar_to_hardware(date_time, &seconds, &milliseconds, &calendar)) return 0;
+#if HAS_RP2040_RTC
+    return aon_timer_set_time_calendar(&calendar);
+#else
+    struct timespec value = { .tv_sec = (time_t)seconds, .tv_nsec = milliseconds * 1000000L };
+    return aon_timer_set_time(&value);
+#endif
+}
+
+int32_t bmx_pico_calendar_get(BMXPicoCalendarDateTime *date_time) {
+    if (!date_time || get_core_num() != 0 || !aon_timer_is_running()) return 0;
+#if HAS_RP2040_RTC
+    struct tm calendar;
+    if (!aon_timer_get_time_calendar(&calendar)) return 0;
+    BMXPicoCalendarDateTime value = {
+        .year = calendar.tm_year + 1900, .month = calendar.tm_mon + 1, .day = calendar.tm_mday,
+        .hour = calendar.tm_hour, .minute = calendar.tm_min, .second = calendar.tm_sec,
+        .millisecond = 0, .utc = 1, .offset = 0, .dst = 0
+    };
+    *date_time = value;
+    return 1;
+#else
+    struct timespec value;
+    if (!aon_timer_get_time(&value)) return 0;
+    return bmx_pico_datetime_from_epoch((int64_t)value.tv_sec, (int32_t)(value.tv_nsec / 1000000L), date_time);
+#endif
+}
+
+int32_t bmx_pico_calendar_is_running(void) {
+    return aon_timer_is_running();
+}
+
+uint64_t bmx_pico_calendar_resolution_nanoseconds(void) {
+    struct timespec resolution;
+    aon_timer_get_resolution(&resolution);
+    return (uint64_t)resolution.tv_sec * 1000000000u + (uint64_t)resolution.tv_nsec;
+}
+
+int32_t bmx_pico_calendar_set_alarm(const BMXPicoCalendarDateTime *date_time,
+    int32_t wake_from_low_power) {
+    if (get_core_num() != 0) return 0;
+    int64_t seconds;
+    int32_t milliseconds;
+    struct tm calendar;
+    if (!bmx_pico_calendar_to_hardware(date_time, &seconds, &milliseconds, &calendar)) return 0;
+    bmx_pico_calendar_alarm_events = 0;
+#if HAS_RP2040_RTC
+    aon_timer_alarm_handler_t previous = aon_timer_enable_alarm_calendar(&calendar,
+        bmx_pico_calendar_alarm_handler, wake_from_low_power != 0);
+#else
+    struct timespec value = { .tv_sec = (time_t)seconds, .tv_nsec = milliseconds * 1000000L };
+    aon_timer_alarm_handler_t previous = aon_timer_enable_alarm(&value,
+        bmx_pico_calendar_alarm_handler, wake_from_low_power != 0);
+#endif
+    return (intptr_t)previous != PICO_ERROR_INVALID_ARG;
+}
+
+void bmx_pico_calendar_disable_alarm(void) {
+    if (get_core_num() != 0) return;
+    aon_timer_disable_alarm();
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    bmx_pico_calendar_alarm_events = 0;
+    restore_interrupts(interrupt_state);
+}
+
+uint32_t bmx_pico_calendar_pending_alarm_events(void) {
+    if (get_core_num() != 0) return 0;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t events = bmx_pico_calendar_alarm_events;
+    restore_interrupts(interrupt_state);
+    return events;
+}
+
+uint32_t bmx_pico_calendar_take_alarm_events(void) {
+    if (get_core_num() != 0) return 0;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t events = bmx_pico_calendar_alarm_events;
+    bmx_pico_calendar_alarm_events = 0;
+    restore_interrupts(interrupt_state);
+    return events;
 }
 
 uint32_t bmx_pico_pwm_init_gpio(uint32_t gpio) {

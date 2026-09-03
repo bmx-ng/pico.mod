@@ -43,6 +43,22 @@ typedef struct BMXPicoString {
     const uint16_t *buf;
 } BMXPicoString;
 
+/* Binary-compatible with Pub.Time.SDateTime. Keeping this native shape in the
+   runtime lets Pub.Time and Pico.System.Calendar share one implementation
+   without introducing a module dependency cycle. */
+typedef struct BMXPicoCalendarDateTime {
+    int32_t year;
+    int32_t month;
+    int32_t day;
+    int32_t hour;
+    int32_t minute;
+    int32_t second;
+    int32_t millisecond;
+    int32_t utc;
+    int32_t offset;
+    int32_t dst;
+} BMXPicoCalendarDateTime;
+
 typedef struct BMXPicoValueDescriptor BMXPicoValueDescriptor;
 typedef void (*BMXPicoArrayInitializer)(void *element);
 
@@ -482,6 +498,17 @@ uint32_t bmx_pico_alarm_pending_events(int32_t handle);
 uint32_t bmx_pico_alarm_take_events(int32_t handle);
 int64_t bmx_pico_alarm_remaining_us(int32_t handle);
 int32_t bmx_pico_alarm_remaining_ms(int32_t handle);
+
+int32_t bmx_pico_datetime_to_epoch(const BMXPicoCalendarDateTime *date_time,
+    int64_t *seconds, int32_t *milliseconds);
+int32_t bmx_pico_datetime_from_epoch(int64_t seconds, int32_t milliseconds,
+    BMXPicoCalendarDateTime *date_time);
+void bmx_pico_calendar_stop(void);
+int32_t bmx_pico_calendar_is_running(void);
+uint64_t bmx_pico_calendar_resolution_nanoseconds(void);
+void bmx_pico_calendar_disable_alarm(void);
+uint32_t bmx_pico_calendar_pending_alarm_events(void);
+uint32_t bmx_pico_calendar_take_alarm_events(void);
 
 uint32_t bmx_pico_pwm_init_gpio(uint32_t gpio);
 uint32_t bmx_pico_pwm_slice_for_gpio(uint32_t gpio);
