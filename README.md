@@ -31,12 +31,16 @@ The namespace includes:
 - `Pico.Hardware.SPI`
 - `Pico.Hardware.UART`
 - `Pico.Hardware.Watchdog`
+- `Pico.System.Calendar`
 - `Pico.System.Time`
 - `Pico.System.Device`
 - `Pico.IO.StandardIO`
 
 The target also reuses compatible standard modules such as `BRL.Blitz`,
-`BRL.StandardIO`, `BRL.Stream`, and selected collection modules. The
+`BRL.StandardIO`, `BRL.Stream`, `Pub.Time`, and selected collection modules.
+`Pico.System.Calendar` controls the board's UTC calendar clock, while familiar
+`Pub.Time` functions such as `CurrentDateTime`, `CurrentUnixTime`,
+`CurrentDate`, and `CurrentTime` read it. The
 [`examples`](examples) directory contains language, runtime, peripheral, PIO,
 DMA, stream, and debugging examples.
 
