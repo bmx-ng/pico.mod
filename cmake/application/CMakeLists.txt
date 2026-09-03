@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-foreach(required_variable BLITZMAX_PICO_SDK BLITZMAX_APPLICATION_ROOT BLITZMAX_GENERATED_C BLITZMAX_OUTPUT_NAME BLITZMAX_PICO_ARENA_SIZE)
+foreach(required_variable BLITZMAX_PICO_SDK BLITZMAX_APPLICATION_ROOT BLITZMAX_GENERATED_C BLITZMAX_OUTPUT_NAME BLITZMAX_PICO_ARENA_SIZE BLITZMAX_PICO_STORAGE_SIZE)
     if (NOT DEFINED ${required_variable})
         message(FATAL_ERROR "${required_variable} must be supplied by bmk")
     endif()
@@ -37,6 +37,42 @@ if (NOT DEFINED PICO_FLASH_SIZE_BYTES)
 endif()
 math(EXPR BLITZMAX_PICO_FLASH_BYTES "${PICO_FLASH_SIZE_BYTES}")
 
+math(EXPR BLITZMAX_PICO_STORAGE_BYTES "${BLITZMAX_PICO_STORAGE_SIZE}")
+if (BLITZMAX_PICO_STORAGE_BYTES LESS 0)
+    message(FATAL_ERROR "The BlitzMax Pico persistent storage size cannot be negative")
+endif()
+if (BLITZMAX_PICO_STORAGE_BYTES GREATER 0)
+    math(EXPR _blitzmax_storage_remainder "${BLITZMAX_PICO_STORAGE_BYTES} % 4096")
+    if (NOT _blitzmax_storage_remainder EQUAL 0)
+        message(FATAL_ERROR "The BlitzMax Pico persistent storage size must be a multiple of 4096 bytes")
+    endif()
+    if (BLITZMAX_PICO_STORAGE_BYTES LESS 8192)
+        message(FATAL_ERROR "The BlitzMax Pico persistent storage region must contain at least two flash sectors")
+    endif()
+endif()
+
+# RP2350 A2-compatible builds keep the last sector unused when persistent
+# storage is enabled. This follows the Pico SDK's own flash-bank placement and
+# leaves room for the RP2350-E10 workaround without shifting the filesystem.
+set(BLITZMAX_PICO_TAIL_RESERVED_BYTES 0)
+if (BLITZMAX_PICO_STORAGE_BYTES GREATER 0 AND
+        PICO_PLATFORM MATCHES "^rp2350-arm-" AND PICO_RP2350_A2_SUPPORTED)
+    set(BLITZMAX_PICO_TAIL_RESERVED_BYTES 4096)
+endif()
+math(EXPR BLITZMAX_PICO_STORAGE_OFFSET
+    "${BLITZMAX_PICO_FLASH_BYTES} - ${BLITZMAX_PICO_TAIL_RESERVED_BYTES} - ${BLITZMAX_PICO_STORAGE_BYTES}")
+set(BLITZMAX_PICO_APPLICATION_FLASH_BYTES ${BLITZMAX_PICO_STORAGE_OFFSET})
+if (BLITZMAX_PICO_APPLICATION_FLASH_BYTES LESS 65536)
+    message(FATAL_ERROR
+        "The requested Pico persistent storage leaves less than 64 KiB for the application")
+endif()
+
+# pico_standard_link has already generated this include using the physical
+# flash capacity. Replace only the linker's FLASH region length: runtime flash
+# APIs must continue to see the board's real PICO_FLASH_SIZE_BYTES value.
+file(WRITE "${CMAKE_BINARY_DIR}/pico_flash_region.ld"
+    "FLASH(rx) : ORIGIN = 0x10000000, LENGTH = ${BLITZMAX_PICO_APPLICATION_FLASH_BYTES}\n")
+
 if (BLITZMAX_PICO_ARENA_SIZE STREQUAL "auto")
     set(BLITZMAX_PICO_RESOLVED_ARENA_SIZE ${BLITZMAX_PICO_AUTO_ARENA_SIZE})
 else()
@@ -54,6 +90,14 @@ set(BLITZMAX_PICO_RAM_BYTES ${BLITZMAX_PICO_RAM_BYTES}
     CACHE INTERNAL "BlitzMax Pico internal SRAM budget" FORCE)
 set(BLITZMAX_PICO_FLASH_BYTES ${BLITZMAX_PICO_FLASH_BYTES}
     CACHE INTERNAL "BlitzMax Pico board flash capacity" FORCE)
+set(BLITZMAX_PICO_APPLICATION_FLASH_BYTES ${BLITZMAX_PICO_APPLICATION_FLASH_BYTES}
+    CACHE INTERNAL "BlitzMax Pico application flash capacity" FORCE)
+set(BLITZMAX_PICO_STORAGE_OFFSET ${BLITZMAX_PICO_STORAGE_OFFSET}
+    CACHE INTERNAL "BlitzMax Pico persistent storage flash offset" FORCE)
+set(BLITZMAX_PICO_STORAGE_BYTES ${BLITZMAX_PICO_STORAGE_BYTES}
+    CACHE INTERNAL "BlitzMax Pico persistent storage size" FORCE)
+set(BLITZMAX_PICO_TAIL_RESERVED_BYTES ${BLITZMAX_PICO_TAIL_RESERVED_BYTES}
+    CACHE INTERNAL "BlitzMax Pico protected flash tail size" FORCE)
 set(BLITZMAX_PICO_RESOLVED_ARENA_SIZE ${BLITZMAX_PICO_RESOLVED_ARENA_SIZE}
     CACHE INTERNAL "Resolved BlitzMax Pico managed heap size" FORCE)
 
@@ -96,13 +140,17 @@ if (DEFINED BLITZMAX_PICO_PIO_CMAKE)
     include("${BLITZMAX_PICO_PIO_CMAKE}")
 endif()
 
-target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_stdlib pico_aon_timer pico_rand pico_unique_id hardware_adc hardware_dma hardware_i2c hardware_pio hardware_pwm hardware_spi hardware_uart hardware_watchdog)
+target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_stdlib pico_aon_timer pico_flash pico_rand pico_unique_id hardware_adc hardware_dma hardware_flash hardware_i2c hardware_pio hardware_pwm hardware_spi hardware_uart hardware_watchdog)
 if (BLITZMAX_PICO_NATIVE_LINK_OPTIONS)
     target_link_options(${BLITZMAX_OUTPUT_NAME} PRIVATE ${BLITZMAX_PICO_NATIVE_LINK_OPTIONS})
 endif()
 target_compile_definitions(${BLITZMAX_OUTPUT_NAME} PRIVATE
     RYU_OPTIMIZE_SIZE=1
     BMX_PICO_ARENA_SIZE=${BLITZMAX_PICO_RESOLVED_ARENA_SIZE}u
+    BMX_PICO_FLASH_BYTES=${BLITZMAX_PICO_FLASH_BYTES}u
+    BMX_PICO_STORAGE_OFFSET=${BLITZMAX_PICO_STORAGE_OFFSET}u
+    BMX_PICO_STORAGE_SIZE=${BLITZMAX_PICO_STORAGE_BYTES}u
+    BMX_PICO_TAIL_RESERVED_SIZE=${BLITZMAX_PICO_TAIL_RESERVED_BYTES}u
 )
 target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
     "${PICO_MODULE_ROOT}/runtime.mod/native/include"
