@@ -6,6 +6,7 @@
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
+#include "hardware/flash.h"
 #include "hardware/irq.h"
 #include "hardware/i2c.h"
 #include "hardware/pio.h"
@@ -18,11 +19,28 @@
 #include "hardware/watchdog.h"
 #include "pico/bootrom.h"
 #include "pico/aon_timer.h"
+#include "pico/flash.h"
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
 
 #ifndef BMX_PICO_ARENA_SIZE
 #define BMX_PICO_ARENA_SIZE (16u * 1024u)
+#endif
+
+#ifndef BMX_PICO_FLASH_BYTES
+#define BMX_PICO_FLASH_BYTES 0u
+#endif
+
+#ifndef BMX_PICO_STORAGE_OFFSET
+#define BMX_PICO_STORAGE_OFFSET 0u
+#endif
+
+#ifndef BMX_PICO_STORAGE_SIZE
+#define BMX_PICO_STORAGE_SIZE 0u
+#endif
+
+#ifndef BMX_PICO_TAIL_RESERVED_SIZE
+#define BMX_PICO_TAIL_RESERVED_SIZE 0u
 #endif
 
 #ifndef BMX_PICO_ROOT_CAPACITY
@@ -685,17 +703,18 @@ static BMXPicoHeapBlock *bmx_pico_string_allocation(const void *string) {
     return NULL;
 }
 
-const BMXPicoString *bmx_pico_stream_url_string(BMXPicoObject *value) {
-    if (!value || value == &bmx_pico_null_object) return &bmx_pico_empty_string;
-    if ((const void *)value == (const void *)&bmx_pico_empty_string || bmx_pico_string_allocation(value)) {
-        return (const BMXPicoString *)value;
-    }
-    if (bmx_pico_object_allocation(value) || bmx_pico_array_allocation(value)) {
-        return &bmx_pico_empty_string;
-    }
+int32_t bmx_pico_object_is_string(BMXPicoObject *value) {
+    if (!value || value == &bmx_pico_null_object) return 0;
+    if ((const void *)value == (const void *)&bmx_pico_empty_string ||
+        bmx_pico_string_allocation(value)) return 1;
+    if (bmx_pico_object_allocation(value) || bmx_pico_array_allocation(value)) return 0;
     const BMXPicoString *text = (const BMXPicoString *)value;
-    if (text->length < 0 || (text->length > 0 && !text->buf)) return &bmx_pico_empty_string;
-    return text;
+    return text->length >= 0 && (text->length == 0 || text->buf);
+}
+
+const BMXPicoString *bmx_pico_stream_url_string(BMXPicoObject *value) {
+    if (!bmx_pico_object_is_string(value)) return &bmx_pico_empty_string;
+    return (const BMXPicoString *)value;
 }
 
 void *bmx_pico_object_allocate(const BMXPicoTypeDescriptor *type) {
@@ -1500,6 +1519,11 @@ void bmx_pico_string_install_unicode_case(BMXPicoStringCaseTransform lower,
     bmx_pico_unicode_lower = lower;
     bmx_pico_unicode_upper = upper;
     bmx_pico_unicode_fold = fold;
+}
+
+uint16_t bmx_pico_string_fold_character(uint16_t character) {
+    return bmx_pico_unicode_fold ? bmx_pico_unicode_fold(character) :
+        bmx_pico_ascii_case_fold(character);
 }
 
 int32_t bmx_pico_string_compare_case(const BMXPicoString *left, const BMXPicoString *right,
@@ -2504,6 +2528,114 @@ int32_t bmx_pico_device_reboot_to_bootsel(int32_t activity_pin, int32_t activity
     uint32_t disable_mask = (disable_mass_storage ? 1u : 0u) | (disable_picoboot ? 2u : 0u);
     rom_reset_usb_boot_extra(activity_pin, disable_mask, activity_pin_active_low != 0);
     return 1;
+}
+
+uint32_t bmx_pico_flash_storage_physical_size(void) {
+    return BMX_PICO_FLASH_BYTES;
+}
+
+uint32_t bmx_pico_flash_storage_offset(void) {
+    return BMX_PICO_STORAGE_OFFSET;
+}
+
+uint32_t bmx_pico_flash_storage_size(void) {
+    return BMX_PICO_STORAGE_SIZE;
+}
+
+uint32_t bmx_pico_flash_storage_tail_reserved_size(void) {
+    return BMX_PICO_TAIL_RESERVED_SIZE;
+}
+
+uint32_t bmx_pico_flash_storage_read_size(void) {
+    return 1u;
+}
+
+uint32_t bmx_pico_flash_storage_program_size(void) {
+    return FLASH_PAGE_SIZE;
+}
+
+uint32_t bmx_pico_flash_storage_erase_size(void) {
+    return FLASH_SECTOR_SIZE;
+}
+
+static int32_t bmx_pico_flash_storage_range_valid(uint32_t offset, uint32_t count) {
+    return BMX_PICO_STORAGE_SIZE && offset <= BMX_PICO_STORAGE_SIZE &&
+        count <= BMX_PICO_STORAGE_SIZE - offset;
+}
+
+int32_t bmx_pico_flash_storage_read(uint32_t offset, void *destination, uint32_t count) {
+    if ((!destination && count) || !bmx_pico_flash_storage_range_valid(offset, count)) {
+        return PICO_ERROR_INVALID_ARG;
+    }
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    if (count) {
+        memcpy(destination, (const void *)(uintptr_t)(XIP_BASE + BMX_PICO_STORAGE_OFFSET + offset), count);
+    }
+    return PICO_OK;
+}
+
+int32_t bmx_pico_flash_storage_is_erased(uint32_t offset, uint32_t count) {
+    if (!bmx_pico_flash_storage_range_valid(offset, count)) return PICO_ERROR_INVALID_ARG;
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    const uint8_t *source = (const uint8_t *)(uintptr_t)(XIP_BASE + BMX_PICO_STORAGE_OFFSET + offset);
+    for (uint32_t index = 0; index < count; ++index) {
+        if (source[index] != 0xffu) return 0;
+    }
+    return 1;
+}
+
+typedef struct BMXPicoFlashOperation {
+    uint32_t offset;
+    const uint8_t *data;
+    uint32_t count;
+} BMXPicoFlashOperation;
+
+static void __no_inline_not_in_flash_func(bmx_pico_flash_storage_program_callback)(void *parameter) {
+    BMXPicoFlashOperation *operation = (BMXPicoFlashOperation *)parameter;
+    flash_range_program(BMX_PICO_STORAGE_OFFSET + operation->offset, operation->data, operation->count);
+}
+
+static void __no_inline_not_in_flash_func(bmx_pico_flash_storage_erase_callback)(void *parameter) {
+    BMXPicoFlashOperation *operation = (BMXPicoFlashOperation *)parameter;
+    flash_range_erase(BMX_PICO_STORAGE_OFFSET + operation->offset, operation->count);
+}
+
+int32_t bmx_pico_flash_storage_program(uint32_t offset, void *source, uint32_t count,
+        uint32_t timeout_ms) {
+    if ((!source && count) || !bmx_pico_flash_storage_range_valid(offset, count)) {
+        return PICO_ERROR_INVALID_ARG;
+    }
+    if ((offset & (FLASH_PAGE_SIZE - 1u)) || (count & (FLASH_PAGE_SIZE - 1u))) {
+        return PICO_ERROR_BAD_ALIGNMENT;
+    }
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+
+    const uint8_t *bytes = (const uint8_t *)source;
+    const uint8_t *existing = (const uint8_t *)(uintptr_t)(XIP_BASE + BMX_PICO_STORAGE_OFFSET + offset);
+    for (uint32_t index = 0; index < count; ++index) {
+        if ((existing[index] & bytes[index]) != bytes[index]) {
+            return PICO_ERROR_UNSUPPORTED_MODIFICATION;
+        }
+    }
+
+    uint8_t page[FLASH_PAGE_SIZE];
+    for (uint32_t position = 0; position < count; position += FLASH_PAGE_SIZE) {
+        memcpy(page, bytes + position, FLASH_PAGE_SIZE);
+        BMXPicoFlashOperation operation = {offset + position, page, FLASH_PAGE_SIZE};
+        int result = flash_safe_execute(bmx_pico_flash_storage_program_callback, &operation, timeout_ms);
+        if (result != PICO_OK) return result;
+    }
+    return PICO_OK;
+}
+
+int32_t bmx_pico_flash_storage_erase(uint32_t offset, uint32_t count, uint32_t timeout_ms) {
+    if (!bmx_pico_flash_storage_range_valid(offset, count)) return PICO_ERROR_INVALID_ARG;
+    if ((offset & (FLASH_SECTOR_SIZE - 1u)) || (count & (FLASH_SECTOR_SIZE - 1u))) {
+        return PICO_ERROR_BAD_ALIGNMENT;
+    }
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    BMXPicoFlashOperation operation = {offset, NULL, count};
+    return flash_safe_execute(bmx_pico_flash_storage_erase_callback, &operation, timeout_ms);
 }
 
 void bmx_pico_gpio_init(uint32_t gpio) {

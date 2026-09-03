@@ -206,6 +206,8 @@ extern const BMXPicoString bmx_pico_empty_string;
 extern BMXPicoArray bmx_pico_empty_array;
 extern BMXPicoObject bmx_pico_null_object;
 
+int32_t bmx_pico_object_is_string(BMXPicoObject *value);
+
 int32_t bmx_pico_string_compare(const BMXPicoString *left, const BMXPicoString *right);
 int32_t bmx_pico_string_equals(const BMXPicoString *left, const BMXPicoString *right);
 uint32_t bmx_pico_string_hash(const BMXPicoString *text);
@@ -216,6 +218,7 @@ typedef const BMXPicoString *(*BMXPicoStringCaseTransform)(const BMXPicoString *
 typedef uint16_t (*BMXPicoCharacterCaseFold)(uint16_t character);
 void bmx_pico_string_install_unicode_case(BMXPicoStringCaseTransform lower,
     BMXPicoStringCaseTransform upper, BMXPicoCharacterCaseFold fold);
+uint16_t bmx_pico_string_fold_character(uint16_t character);
 const BMXPicoString *bmx_pico_string_to_string(const BMXPicoString *text);
 int32_t bmx_pico_string_find(const BMXPicoString *text, const BMXPicoString *substring, int32_t start);
 int32_t bmx_pico_string_find_last(const BMXPicoString *text, const BMXPicoString *substring, int32_t start);
@@ -456,6 +459,19 @@ int32_t bmx_pico_bootsel_button_pressed(void);
 int32_t bmx_pico_device_reboot(uint32_t delay_ms);
 int32_t bmx_pico_device_reboot_to_bootsel(int32_t activity_pin, int32_t activity_pin_active_low,
     int32_t disable_mass_storage, int32_t disable_picoboot);
+
+uint32_t bmx_pico_flash_storage_physical_size(void);
+uint32_t bmx_pico_flash_storage_offset(void);
+uint32_t bmx_pico_flash_storage_size(void);
+uint32_t bmx_pico_flash_storage_tail_reserved_size(void);
+uint32_t bmx_pico_flash_storage_read_size(void);
+uint32_t bmx_pico_flash_storage_program_size(void);
+uint32_t bmx_pico_flash_storage_erase_size(void);
+int32_t bmx_pico_flash_storage_read(uint32_t offset, void *destination, uint32_t count);
+int32_t bmx_pico_flash_storage_is_erased(uint32_t offset, uint32_t count);
+int32_t bmx_pico_flash_storage_program(uint32_t offset, void *source, uint32_t count,
+    uint32_t timeout_ms);
+int32_t bmx_pico_flash_storage_erase(uint32_t offset, uint32_t count, uint32_t timeout_ms);
 
 void bmx_pico_gpio_init(uint32_t gpio);
 void bmx_pico_gpio_set_function(uint32_t gpio, int32_t function);

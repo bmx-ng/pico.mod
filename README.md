@@ -31,6 +31,8 @@ The namespace includes:
 - `Pico.Hardware.SPI`
 - `Pico.Hardware.UART`
 - `Pico.Hardware.Watchdog`
+- `Pico.Storage.Flash` for bounded access to a build-reserved flash region
+- `Pico.Storage.LittleFS` for persistent `TStream` and `BRL.FileSystem` storage
 - `Pico.System.Calendar`
 - `Pico.System.Time`
 - `Pico.System.Device`
@@ -90,6 +92,8 @@ line information. Debug-probe launching is a separate OpenOCD/GDB step.
 | `-board <name>` | Use another board definition from the selected Pico SDK |
 | `-heap auto` | Use the board-aware managed heap; this is the default |
 | `-heap <size>` | Set the managed heap in bytes or with `k`, `KiB`, `m`, or `MiB` |
+| `-storage none` | Do not reserve persistent flash; this is the default |
+| `-storage <size>` | Reserve sector-aligned persistent flash, for example `-storage 256k` |
 | `-x` | Upload, verify, and start through `picotool` |
 | `-d` | Build with source-level GDB information |
 | `-r` | Build optimised release firmware |
@@ -98,6 +102,16 @@ The automatic managed heap is 192 KiB on RP2040 and 384 KiB on ARM RP2350.
 External PSRAM is not used automatically. After linking, bmk reports the
 board-configured flash capacity, managed-heap use, other internal RAM use, and
 remaining internal-RAM headroom.
+
+Importing `Pico.Storage.LittleFS` installs LittleFS as the default
+`BRL.FileSystem` backend, so ordinary paths work with familiar APIs including
+`ReadFile`, `WriteFile`, `CreateDir`, `BRL.Path`, and `BRL.Glob`. The module
+requires `-storage`; a completely blank region is formatted automatically,
+while nonblank unrecognised data is never erased automatically. Normal
+`picotool` application uploads preserve the reserved region. Creation and
+modification times are maintained when calendar time is available, and all
+three standard file times can be set explicitly. Access time is not changed by
+reads, avoiding an otherwise costly flash write for every read operation.
 
 ## Tool configuration
 
@@ -112,6 +126,7 @@ Tool locations can be set in `custom.bmk`:
 #addoption pico.pioasm "/path/to/pioasm"
 #addoption pico.board.header.dirs "/path/to/custom/board/headers"
 #addoption pico.board.cmake.dirs "/path/to/custom/board/cmake"
+#addoption pico.storage "256k"
 ```
 
 The corresponding environment variables are `PICO_SDK_PATH`,
