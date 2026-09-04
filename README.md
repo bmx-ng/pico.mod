@@ -62,10 +62,8 @@ appropriate, and Raspberry Pi's managed `.pico-sdk` installation in the user's
 home directory.
 
 Pico SDK 2.3.0 is the supported baseline. `Pico.System.Power` uses its official
-`pico_low_power` library. With an older SDK the module remains buildable and
-provides `PowerIdle`, while its clock-gated sleep and dormant operations report
-`EPowerResult.Unavailable`. A matching `picotool` version is recommended when
-using SDK 2.3.0.
+`pico_low_power` library and is linked only when that module is imported. A
+matching `picotool` version is recommended.
 
 ## Building and uploading
 

@@ -12,6 +12,13 @@ endif()
 
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
+if (NOT DEFINED PICO_SDK_VERSION_STRING OR
+        PICO_SDK_VERSION_STRING VERSION_LESS "2.3.0")
+    message(FATAL_ERROR
+        "The BlitzMax Pico target requires Raspberry Pi Pico SDK 2.3.0 or newer; "
+        "selected SDK version is '${PICO_SDK_VERSION_STRING}'")
+endif()
+
 project(blitzmax_pico_application C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
@@ -21,8 +28,14 @@ pico_sdk_init()
 
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pico_system_power_power" BLITZMAX_PICO_POWER_MODULE_INDEX)
 set(BLITZMAX_PICO_POWER_MODULE_ENABLED FALSE)
-if (NOT BLITZMAX_PICO_POWER_MODULE_INDEX EQUAL -1 AND TARGET pico_low_power)
+if (NOT BLITZMAX_PICO_POWER_MODULE_INDEX EQUAL -1)
+    if (NOT TARGET pico_low_power)
+        message(FATAL_ERROR
+            "Pico.System.Power requires the Pico SDK pico_low_power library")
+    endif()
     set(BLITZMAX_PICO_POWER_MODULE_ENABLED TRUE)
+    set(BLITZMAX_PICO_POWER_SOURCE
+        "${BLITZMAX_PICO_SDK}/mod/pico.mod/system.mod/power.mod/native/pico_power.c")
 endif()
 
 if (PICO_PLATFORM STREQUAL "rp2040")
@@ -138,6 +151,7 @@ add_executable(${BLITZMAX_OUTPUT_NAME}
     "${PICO_MODULE_ROOT}/runtime.mod/native/pico_string_integer.c"
     "${PICO_MODULE_ROOT}/runtime.mod/native/pico_string_float.cpp"
     "${PICO_MODULE_ROOT}/runtime.mod/native/pico_unicode.c"
+    ${BLITZMAX_PICO_POWER_SOURCE}
     "${BRL_BLITZ_ROOT}/ryu/ryu/f2s.c"
     "${BRL_BLITZ_ROOT}/ryu/ryu/d2s.c"
 )
@@ -160,7 +174,6 @@ target_compile_definitions(${BLITZMAX_OUTPUT_NAME} PRIVATE
     BMX_PICO_STORAGE_OFFSET=${BLITZMAX_PICO_STORAGE_OFFSET}u
     BMX_PICO_STORAGE_SIZE=${BLITZMAX_PICO_STORAGE_BYTES}u
     BMX_PICO_TAIL_RESERVED_SIZE=${BLITZMAX_PICO_TAIL_RESERVED_BYTES}u
-    BMX_PICO_HAS_LOW_POWER=$<BOOL:${BLITZMAX_PICO_POWER_MODULE_ENABLED}>
 )
 target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
     "${PICO_MODULE_ROOT}/runtime.mod/native/include"

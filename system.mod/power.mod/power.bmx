@@ -5,9 +5,8 @@ SuperStrict
 
 Rem
 bbdoc: Low-power sleep and wake services for Raspberry Pi Pico targets.
-about: Full clock-gated sleep and dormant operation requires Pico SDK 2.3.0 or
-newer. #PowerCapabilities reports the operations available in the selected SDK
-and processor. Ordinary #Delay and Pico.System.Time sleeps do not enter these
+about: #PowerCapabilities reports the operations available on the selected
+processor. Ordinary #Delay and Pico.System.Time sleeps do not enter these
 explicit low-power states.
 End Rem
 Module Pico.System.Power
@@ -48,7 +47,7 @@ Extern "C"
 
 	Rem
 	bbdoc: Waits efficiently until an interrupt occurs without changing clocks.
-	about: This operation is available with every supported Pico SDK and may wake
+	about: This operation may wake
 	spuriously. Code must always recheck the condition it was waiting for.
 	End Rem
 	Function PowerIdle() = "bmx_pico_power_idle"
