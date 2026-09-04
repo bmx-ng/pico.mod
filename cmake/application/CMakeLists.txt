@@ -19,6 +19,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pico_system_power_power" BLITZMAX_PICO_POWER_MODULE_INDEX)
+set(BLITZMAX_PICO_POWER_MODULE_ENABLED FALSE)
+if (NOT BLITZMAX_PICO_POWER_MODULE_INDEX EQUAL -1 AND TARGET pico_low_power)
+    set(BLITZMAX_PICO_POWER_MODULE_ENABLED TRUE)
+endif()
+
 if (PICO_PLATFORM STREQUAL "rp2040")
     math(EXPR BLITZMAX_PICO_RAM_BYTES "256 * 1024")
     math(EXPR BLITZMAX_PICO_AUTO_ARENA_SIZE "192 * 1024")
@@ -141,6 +147,9 @@ if (DEFINED BLITZMAX_PICO_PIO_CMAKE)
 endif()
 
 target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_stdlib pico_aon_timer pico_flash pico_rand pico_unique_id hardware_adc hardware_dma hardware_flash hardware_i2c hardware_pio hardware_pwm hardware_spi hardware_uart hardware_watchdog)
+if (BLITZMAX_PICO_POWER_MODULE_ENABLED)
+    target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_low_power)
+endif()
 if (BLITZMAX_PICO_NATIVE_LINK_OPTIONS)
     target_link_options(${BLITZMAX_OUTPUT_NAME} PRIVATE ${BLITZMAX_PICO_NATIVE_LINK_OPTIONS})
 endif()
@@ -151,6 +160,7 @@ target_compile_definitions(${BLITZMAX_OUTPUT_NAME} PRIVATE
     BMX_PICO_STORAGE_OFFSET=${BLITZMAX_PICO_STORAGE_OFFSET}u
     BMX_PICO_STORAGE_SIZE=${BLITZMAX_PICO_STORAGE_BYTES}u
     BMX_PICO_TAIL_RESERVED_SIZE=${BLITZMAX_PICO_TAIL_RESERVED_BYTES}u
+    BMX_PICO_HAS_LOW_POWER=$<BOOL:${BLITZMAX_PICO_POWER_MODULE_ENABLED}>
 )
 target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
     "${PICO_MODULE_ROOT}/runtime.mod/native/include"

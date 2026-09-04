@@ -23,6 +23,14 @@
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
 
+#ifndef BMX_PICO_HAS_LOW_POWER
+#define BMX_PICO_HAS_LOW_POWER 0
+#endif
+
+#if BMX_PICO_HAS_LOW_POWER
+#include "pico/low_power.h"
+#endif
+
 #ifndef BMX_PICO_ARENA_SIZE
 #define BMX_PICO_ARENA_SIZE (16u * 1024u)
 #endif
@@ -2764,6 +2772,86 @@ int32_t bmx_pico_putchar_raw(int32_t character) {
 
 void bmx_pico_sleep_ms(uint32_t milliseconds) {
     sleep_ms(milliseconds);
+}
+
+uint32_t bmx_pico_power_capabilities(void) {
+    uint32_t capabilities = 1u;
+#if BMX_PICO_HAS_LOW_POWER
+    capabilities |= 2u | 4u | 8u | 32u;
+#if !PICO_RP2040
+    capabilities |= 16u;
+#endif
+#endif
+    return capabilities;
+}
+
+void bmx_pico_power_idle(void) {
+    __wfi();
+}
+
+int32_t bmx_pico_power_sleep_until_interrupt(void) {
+#if BMX_PICO_HAS_LOW_POWER
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    return low_power_sleep_until_irq(NULL);
+#else
+    return PICO_ERROR_NOT_FOUND;
+#endif
+}
+
+int32_t bmx_pico_power_sleep_for_ms(uint32_t milliseconds, int32_t exclusive) {
+#if BMX_PICO_HAS_LOW_POWER
+    if (!milliseconds) return PICO_ERROR_INVALID_ARG;
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    return low_power_sleep_for_ms(milliseconds, NULL, exclusive != 0);
+#else
+    (void)milliseconds;
+    (void)exclusive;
+    return PICO_ERROR_NOT_FOUND;
+#endif
+}
+
+int32_t bmx_pico_power_dormant_for_ms(uint32_t milliseconds) {
+#if BMX_PICO_HAS_LOW_POWER && !PICO_RP2040
+    if (!milliseconds) return PICO_ERROR_INVALID_ARG;
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    int32_t result = low_power_dormant_for_ms(milliseconds,
+        DORMANT_CLOCK_SOURCE_DEFAULT, NULL);
+    /* SDK 2.3.0 leaves the POWMAN wake condition armed after a timed
+       dormant period. Clear it so a later GPIO dormant really waits for GPIO. */
+    if (result == PICO_OK) powman_disable_alarm_wakeup();
+    return result;
+#elif BMX_PICO_HAS_LOW_POWER
+    (void)milliseconds;
+    return PICO_ERROR_PRECONDITION_NOT_MET;
+#else
+    (void)milliseconds;
+    return PICO_ERROR_NOT_FOUND;
+#endif
+}
+
+int32_t bmx_pico_power_dormant_until_gpio(uint32_t gpio, int32_t edge, int32_t high) {
+#if BMX_PICO_HAS_LOW_POWER
+    if (gpio >= NUM_BANK0_GPIOS) return PICO_ERROR_INVALID_ARG;
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    return low_power_dormant_until_gpio_pin_state(gpio, edge != 0, high != 0,
+        DORMANT_CLOCK_SOURCE_ROSC, NULL);
+#else
+    (void)gpio;
+    (void)edge;
+    (void)high;
+    return PICO_ERROR_NOT_FOUND;
+#endif
+}
+
+int32_t bmx_pico_power_set_unused_pins_low_leakage(uint64_t exclude_mask) {
+#if BMX_PICO_HAS_LOW_POWER
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    low_power_set_pins_low_leakage_exclude_mask64(exclude_mask);
+    return PICO_OK;
+#else
+    (void)exclude_mask;
+    return PICO_ERROR_NOT_FOUND;
+#endif
 }
 
 int32_t bmx_pico_millisecs(void) {
