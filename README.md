@@ -35,6 +35,7 @@ The namespace includes:
 - `Pico.Storage.LittleFS` for persistent `TStream` and `BRL.FileSystem` storage
 - `Pico.System.Calendar`
 - `Pico.System.Time`
+- `Pico.System.Power`
 - `Pico.System.Device`
 - `Pico.IO.StandardIO`
 
@@ -50,7 +51,7 @@ DMA, stream, and debugging examples.
 
 - A Pico-enabled BlitzMax SDK containing the matching bcc2, bmk,
   `blitzmax.mod`, `brl.mod`, and `pico.mod` revisions
-- The Raspberry Pi Pico SDK
+- Raspberry Pi Pico SDK 2.3.0 or newer
 - An Arm GNU embedded toolchain
 - CMake and Ninja
 - `picotool` for automatic USB upload
@@ -59,6 +60,10 @@ DMA, stream, and debugging examples.
 bmk searches `custom.bmk`, environment variables, the host `PATH` where
 appropriate, and Raspberry Pi's managed `.pico-sdk` installation in the user's
 home directory.
+
+Pico SDK 2.3.0 is the supported baseline. `Pico.System.Power` uses its official
+`pico_low_power` library and is linked only when that module is imported. A
+matching `picotool` version is recommended.
 
 ## Building and uploading
 
@@ -141,6 +146,12 @@ objects, inheritance, interfaces, structs, enums, generics, closures,
 exceptions, finalizers, streams, block-memory operations, Incbin resources,
 and precise managed collection. Native interrupt handlers record events for
 BlitzMax code to consume outside interrupt context.
+
+`Pico.System.Power` provides interrupt and timed clock-gated sleep on both
+processors, GPIO-triggered dormant sleep on both processors, and timed dormant
+sleep on RP2350. Timed dormant sleep on RP2040 needs an external always-on clock
+and is not exposed by the initial API. RP2350 Pstate sleep, which resumes through
+a reboot path, is also deferred until its persistent-state contract is defined.
 
 Multicore execution and the desktop interactive debugger are not currently
 provided. Source stepping, variables, breakpoints, and `DebugStop` are

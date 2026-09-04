@@ -58,3 +58,8 @@ if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/scalar_blink.elf" | rg -q 'bmx_p
 	echo "UART support leaked into the scalar blink image" >&2
 	exit 1
 fi
+
+if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/scalar_blink.elf" | rg -q 'bmx_pico_power_'; then
+	echo "Low-power support leaked into the scalar blink image" >&2
+	exit 1
+fi
