@@ -2727,20 +2727,40 @@ int32_t bmx_pico_gpio_get_drive_strength(uint32_t gpio) {
 }
 
 static volatile uint32_t bmx_pico_gpio_irq_events[NUM_BANK0_GPIOS];
+static volatile uint32_t bmx_pico_gpio_event_tokens[NUM_BANK0_GPIOS];
 static int bmx_pico_gpio_irq_callback_installed;
 
 static void bmx_pico_gpio_irq_callback(uint gpio, uint32_t events) {
-    if (gpio < NUM_BANK0_GPIOS) bmx_pico_gpio_irq_events[gpio] |= events;
+    if (gpio < NUM_BANK0_GPIOS) {
+        uint64_t captured_time = time_us_64();
+        bmx_pico_gpio_irq_events[gpio] |= events;
+        bmx_pico_event_post_from_irq_ex(bmx_pico_gpio_event_tokens[gpio], events,
+            gpio, (uint32_t)captured_time, (uint32_t)(captured_time >> 32u));
+    }
 }
 
 int32_t bmx_pico_gpio_set_irq_enabled(uint32_t gpio, uint32_t event_mask, int32_t enabled) {
-    if (get_core_num() != 0) return 0;
+    if (get_core_num() != 0 || gpio >= NUM_BANK0_GPIOS ||
+            !event_mask || (event_mask & ~0x0fu)) return 0;
     if (enabled && !bmx_pico_gpio_irq_callback_installed) {
         gpio_set_irq_enabled_with_callback(gpio, event_mask, true, bmx_pico_gpio_irq_callback);
         bmx_pico_gpio_irq_callback_installed = 1;
     } else {
         gpio_set_irq_enabled(gpio, event_mask, enabled != 0);
     }
+    return 1;
+}
+
+int32_t bmx_pico_gpio_set_event_token(uint32_t gpio, uint32_t token) {
+    if (get_core_num() != 0 || gpio >= NUM_BANK0_GPIOS) return 0;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    if (token && bmx_pico_gpio_event_tokens[gpio] &&
+            bmx_pico_gpio_event_tokens[gpio] != token) {
+        restore_interrupts(interrupt_state);
+        return 0;
+    }
+    bmx_pico_gpio_event_tokens[gpio] = token;
+    restore_interrupts(interrupt_state);
     return 1;
 }
 
@@ -3910,6 +3930,201 @@ void bmx_pico_uart_clear_errors(int32_t controller) {
     if (uart) uart_get_hw(uart)->rsr = 0xffffffffu;
 }
 
+typedef struct BMXPicoBufferedUART {
+    uint8_t *rx_buffer;
+    uint8_t *tx_buffer;
+    uint32_t rx_capacity;
+    uint32_t tx_capacity;
+    volatile uint32_t rx_put;
+    volatile uint32_t rx_get;
+    volatile uint32_t tx_put;
+    volatile uint32_t tx_get;
+    volatile uint32_t rx_dropped;
+    uint32_t rx_token;
+    uint32_t tx_token;
+    uint32_t error_token;
+    uint8_t open;
+} BMXPicoBufferedUART;
+
+static BMXPicoBufferedUART bmx_pico_buffered_uarts[NUM_UARTS];
+static uint8_t bmx_pico_uart_irq_installed[NUM_UARTS];
+
+static void bmx_pico_uart_async_irq(uint32_t controller) {
+    uart_inst_t *uart = bmx_pico_uart_instance((int32_t)controller);
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    if (!uart || !state->open) return;
+
+    uint32_t errors = uart_get_hw(uart)->rsr & 0x0fu;
+    if (errors) {
+        uart_get_hw(uart)->rsr = 0xffffffffu;
+        bmx_pico_event_post_from_irq_ex(state->error_token, errors, controller, 0, 0);
+    }
+
+    bool rx_was_empty = state->rx_put == state->rx_get;
+    while (uart_is_readable(uart)) {
+        uint8_t value = (uint8_t)uart_get_hw(uart)->dr;
+        uint32_t put = state->rx_put;
+        if (put - state->rx_get >= state->rx_capacity) {
+            if (state->rx_dropped != UINT32_MAX) ++state->rx_dropped;
+        } else {
+            state->rx_buffer[put & (state->rx_capacity - 1u)] = value;
+            state->rx_put = put + 1u;
+        }
+    }
+    if (rx_was_empty && state->rx_put != state->rx_get)
+        bmx_pico_event_post_from_irq_ex(state->rx_token,
+            state->rx_put - state->rx_get, controller, 0, 0);
+
+    bool tx_had_data = state->tx_put != state->tx_get;
+    while (state->tx_get != state->tx_put && uart_is_writable(uart)) {
+        uart_get_hw(uart)->dr = state->tx_buffer[state->tx_get & (state->tx_capacity - 1u)];
+        ++state->tx_get;
+    }
+    bool tx_empty = state->tx_get == state->tx_put;
+    uart_set_irqs_enabled(uart, true, !tx_empty);
+    if (tx_had_data && tx_empty)
+        bmx_pico_event_post_from_irq_ex(state->tx_token, 0, controller, 0, 0);
+}
+
+static void bmx_pico_uart0_async_irq(void) { bmx_pico_uart_async_irq(0); }
+#if NUM_UARTS > 1
+static void bmx_pico_uart1_async_irq(void) { bmx_pico_uart_async_irq(1); }
+#endif
+
+static irq_handler_t bmx_pico_uart_async_handler(uint32_t controller) {
+    if (controller == 0) return bmx_pico_uart0_async_irq;
+#if NUM_UARTS > 1
+    if (controller == 1) return bmx_pico_uart1_async_irq;
+#endif
+    return NULL;
+}
+
+int32_t bmx_pico_uart_async_open(int32_t controller, uint32_t rx_capacity,
+        uint32_t tx_capacity, uint32_t rx_token, uint32_t tx_token,
+        uint32_t error_token) {
+    uart_inst_t *uart = bmx_pico_uart_instance(controller);
+    if (get_core_num() != 0 || !uart || !uart_is_enabled(uart) ||
+            rx_capacity < 2u || tx_capacity < 2u ||
+            (rx_capacity & (rx_capacity - 1u)) != 0u ||
+            (tx_capacity & (tx_capacity - 1u)) != 0u ||
+            !rx_token || !tx_token || !error_token) return 0;
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    if (state->open) return 0;
+    uint8_t *rx_buffer = (uint8_t *)bbMemAlloc(rx_capacity);
+    if (!rx_buffer) return 0;
+    uint8_t *tx_buffer = (uint8_t *)bbMemAlloc(tx_capacity);
+    if (!tx_buffer) {
+        bbMemFree(rx_buffer);
+        return 0;
+    }
+    memset(state, 0, sizeof(*state));
+    state->rx_buffer = rx_buffer;
+    state->tx_buffer = tx_buffer;
+    state->rx_capacity = rx_capacity;
+    state->tx_capacity = tx_capacity;
+    state->rx_token = rx_token;
+    state->tx_token = tx_token;
+    state->error_token = error_token;
+    state->open = 1;
+    if (!bmx_pico_uart_irq_installed[controller]) {
+        irq_add_shared_handler(UART_IRQ_NUM(uart),
+            bmx_pico_uart_async_handler((uint32_t)controller),
+            PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
+        irq_set_enabled(UART_IRQ_NUM(uart), true);
+        bmx_pico_uart_irq_installed[controller] = 1;
+    }
+    uart_set_irqs_enabled(uart, true, false);
+    return 1;
+}
+
+int32_t bmx_pico_uart_async_close(int32_t controller) {
+    uart_inst_t *uart = bmx_pico_uart_instance(controller);
+    if (get_core_num() != 0 || !uart) return 0;
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    if (!state->open) return 1;
+    uart_set_irqs_enabled(uart, false, false);
+    uint8_t *rx_buffer = state->rx_buffer;
+    uint8_t *tx_buffer = state->tx_buffer;
+    memset(state, 0, sizeof(*state));
+    bbMemFree(rx_buffer);
+    bbMemFree(tx_buffer);
+    return 1;
+}
+
+int32_t bmx_pico_uart_async_is_open(int32_t controller) {
+    return controller >= 0 && controller < NUM_UARTS &&
+        bmx_pico_buffered_uarts[controller].open;
+}
+
+int32_t bmx_pico_uart_async_read(int32_t controller, void *destination,
+        int32_t capacity) {
+    if (get_core_num() != 0 || controller < 0 || controller >= NUM_UARTS ||
+            capacity < 0 || (capacity && !destination)) return PICO_ERROR_INVALID_ARG;
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    if (!state->open) return PICO_ERROR_INVALID_STATE;
+    uint8_t *bytes = (uint8_t *)destination;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    int32_t count = 0;
+    while (count < capacity && state->rx_get != state->rx_put) {
+        bytes[count++] = state->rx_buffer[state->rx_get & (state->rx_capacity - 1u)];
+        ++state->rx_get;
+    }
+    restore_interrupts(interrupt_state);
+    return count;
+}
+
+int32_t bmx_pico_uart_async_write(int32_t controller, void *source,
+        int32_t length) {
+    uart_inst_t *uart = bmx_pico_uart_instance(controller);
+    if (get_core_num() != 0 || !uart || length < 0 || (length && !source))
+        return PICO_ERROR_INVALID_ARG;
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    if (!state->open) return PICO_ERROR_INVALID_STATE;
+    const uint8_t *bytes = (const uint8_t *)source;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    int32_t count = 0;
+    while (count < length && state->tx_put - state->tx_get < state->tx_capacity) {
+        state->tx_buffer[state->tx_put & (state->tx_capacity - 1u)] = bytes[count++];
+        ++state->tx_put;
+    }
+    while (state->tx_get != state->tx_put && uart_is_writable(uart)) {
+        uart_get_hw(uart)->dr = state->tx_buffer[state->tx_get & (state->tx_capacity - 1u)];
+        ++state->tx_get;
+    }
+    bool tx_empty = state->tx_get == state->tx_put;
+    uart_set_irqs_enabled(uart, true, !tx_empty);
+    if (count && tx_empty)
+        bmx_pico_event_post_from_irq_ex(state->tx_token, 0, (uint32_t)controller, 0, 0);
+    restore_interrupts(interrupt_state);
+    return count;
+}
+
+uint32_t bmx_pico_uart_async_read_available(int32_t controller) {
+    if (controller < 0 || controller >= NUM_UARTS) return 0;
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    return state->open ? state->rx_put - state->rx_get : 0;
+}
+
+uint32_t bmx_pico_uart_async_write_available(int32_t controller) {
+    if (controller < 0 || controller >= NUM_UARTS) return 0;
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    return state->open ? state->tx_capacity - (state->tx_put - state->tx_get) : 0;
+}
+
+uint32_t bmx_pico_uart_async_rx_dropped(int32_t controller) {
+    if (controller < 0 || controller >= NUM_UARTS) return 0;
+    return bmx_pico_buffered_uarts[controller].rx_dropped;
+}
+
+int32_t bmx_pico_uart_async_tx_idle(int32_t controller) {
+    uart_inst_t *uart = bmx_pico_uart_instance(controller);
+    if (!uart || controller < 0 || controller >= NUM_UARTS) return 1;
+    BMXPicoBufferedUART *state = &bmx_pico_buffered_uarts[controller];
+    return !state->open ||
+        (state->tx_put == state->tx_get &&
+            !(uart_get_hw(uart)->fr & UART_UARTFR_BUSY_BITS));
+}
+
 static PIO bmx_pico_pio_instance(int32_t controller) {
     if (controller == 0) return pio0;
     if (controller == 1) return pio1;
@@ -4442,8 +4657,84 @@ int32_t bmx_pico_pio_interrupt_clear(int32_t controller, uint32_t interrupt_numb
     return 1;
 }
 
+#define BMX_PICO_EVENT_CAPACITY 32u
+#define BMX_PICO_EVENT_MASK (BMX_PICO_EVENT_CAPACITY - 1u)
+
+typedef struct BMXPicoDeferredEvent {
+    uint32_t token;
+    uint32_t event_data;
+    uint32_t event_mods;
+    uint32_t event_x;
+    uint32_t event_y;
+} BMXPicoDeferredEvent;
+
+static BMXPicoDeferredEvent bmx_pico_deferred_events[BMX_PICO_EVENT_CAPACITY];
+static volatile uint32_t bmx_pico_deferred_event_put;
+static volatile uint32_t bmx_pico_deferred_event_get;
+static volatile uint32_t bmx_pico_deferred_event_dropped;
+
+int32_t bmx_pico_event_post_from_irq(uint32_t token, uint32_t event_data,
+        uint32_t detail) {
+    return bmx_pico_event_post_from_irq_ex(token, event_data, 0, detail, 0);
+}
+
+int32_t bmx_pico_event_post_from_irq_ex(uint32_t token, uint32_t event_data,
+        uint32_t event_mods, uint32_t event_x, uint32_t event_y) {
+    if (!token) return 0;
+    uint32_t put = bmx_pico_deferred_event_put;
+    if (put - bmx_pico_deferred_event_get >= BMX_PICO_EVENT_CAPACITY) {
+        if (bmx_pico_deferred_event_dropped != UINT32_MAX)
+            ++bmx_pico_deferred_event_dropped;
+        __sev();
+        return 0;
+    }
+    BMXPicoDeferredEvent *event = &bmx_pico_deferred_events[put & BMX_PICO_EVENT_MASK];
+    event->token = token;
+    event->event_data = event_data;
+    event->event_mods = event_mods;
+    event->event_x = event_x;
+    event->event_y = event_y;
+    __dmb();
+    bmx_pico_deferred_event_put = put + 1u;
+    __sev();
+    return 1;
+}
+
+int32_t bmx_pico_event_take(uint32_t *token, uint32_t *event_data,
+        uint32_t *event_mods, uint32_t *event_x, uint32_t *event_y) {
+    if (!token || !event_data || !event_mods || !event_x || !event_y ||
+            get_core_num() != 0) return 0;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t get = bmx_pico_deferred_event_get;
+    if (get == bmx_pico_deferred_event_put) {
+        restore_interrupts(interrupt_state);
+        return 0;
+    }
+    BMXPicoDeferredEvent event = bmx_pico_deferred_events[get & BMX_PICO_EVENT_MASK];
+    bmx_pico_deferred_event_get = get + 1u;
+    restore_interrupts(interrupt_state);
+    *token = event.token;
+    *event_data = event.event_data;
+    *event_mods = event.event_mods;
+    *event_x = event.event_x;
+    *event_y = event.event_y;
+    return 1;
+}
+
+uint32_t bmx_pico_event_pending(void) {
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t pending = bmx_pico_deferred_event_put - bmx_pico_deferred_event_get;
+    restore_interrupts(interrupt_state);
+    return pending;
+}
+
+uint32_t bmx_pico_event_dropped(void) {
+    return bmx_pico_deferred_event_dropped;
+}
+
 static volatile uint32_t bmx_pico_dma_completion_events[2][NUM_DMA_CHANNELS];
 static volatile uint32_t bmx_pico_dma_irq_channel_masks[2];
+static volatile uint32_t bmx_pico_dma_event_tokens[2][NUM_DMA_CHANNELS];
 static uint8_t bmx_pico_dma_irq_installed[2];
 
 static int32_t bmx_pico_dma_channel_valid(uint32_t channel) {
@@ -4459,6 +4750,8 @@ static void bmx_pico_dma_irq_handler(uint32_t irq_line) {
         dma_irqn_acknowledge_channel(irq_line, channel);
         if (bmx_pico_dma_completion_events[irq_line][channel] != UINT32_MAX)
             ++bmx_pico_dma_completion_events[irq_line][channel];
+        bmx_pico_event_post_from_irq(bmx_pico_dma_event_tokens[irq_line][channel],
+            channel, dma_hw->ch[channel].ctrl_trig);
         pending &= ~bit;
     }
 }
@@ -4494,6 +4787,7 @@ int32_t bmx_pico_dma_unclaim_channel(uint32_t channel) {
         dma_irqn_acknowledge_channel(irq_line, channel);
         bmx_pico_dma_irq_channel_masks[irq_line] &= ~(1u << channel);
         bmx_pico_dma_completion_events[irq_line][channel] = 0;
+        bmx_pico_dma_event_tokens[irq_line][channel] = 0;
     }
     dma_channel_cleanup(channel);
     dma_channel_unclaim(channel);
@@ -4503,18 +4797,43 @@ int32_t bmx_pico_dma_unclaim_channel(uint32_t channel) {
 int32_t bmx_pico_dma_configure(uint32_t channel, void *read_address,
         void *write_address, uint32_t transfer_count, uint32_t data_size,
         int32_t read_increment, int32_t write_increment, uint32_t dreq, int32_t start) {
+    return bmx_pico_dma_configure_advanced(channel, read_address, write_address,
+        transfer_count, data_size, read_increment, write_increment, dreq,
+        0, 0, 0, 0, 0, -1, start);
+}
+
+int32_t bmx_pico_dma_configure_advanced(uint32_t channel, void *read_address,
+        void *write_address, uint32_t transfer_count, uint32_t data_size,
+        int32_t read_increment, int32_t write_increment, uint32_t dreq,
+        int32_t high_priority, int32_t byte_swap, int32_t quiet_irq,
+        uint32_t ring_size_bits, int32_t ring_on_write, int32_t chain_to,
+        int32_t start) {
     if (get_core_num() != 0 || !bmx_pico_dma_channel_valid(channel) ||
             !dma_channel_is_claimed(channel) || !read_address || !write_address ||
             !transfer_count || data_size > DMA_SIZE_32 || dreq > DREQ_FORCE ||
+            ring_size_bits > 15u || chain_to >= (int32_t)NUM_DMA_CHANNELS ||
             dma_channel_is_busy(channel)) return 0;
 #if !PICO_RP2040
     if (transfer_count & ~DMA_CH0_TRANS_COUNT_COUNT_BITS) return 0;
 #endif
+    if (chain_to >= 0 && !dma_channel_is_claimed((uint32_t)chain_to)) return 0;
+    if (ring_size_bits) {
+        uintptr_t ring_address = (uintptr_t)(ring_on_write ? write_address : read_address);
+        uintptr_t ring_mask = ((uintptr_t)1u << ring_size_bits) - 1u;
+        if (ring_address & ring_mask) return 0;
+    }
     dma_channel_config config = dma_channel_get_default_config(channel);
     channel_config_set_transfer_data_size(&config, (enum dma_channel_transfer_size)data_size);
     channel_config_set_read_increment(&config, read_increment != 0);
     channel_config_set_write_increment(&config, write_increment != 0);
     channel_config_set_dreq(&config, dreq);
+    channel_config_set_high_priority(&config, high_priority != 0);
+    channel_config_set_bswap(&config, byte_swap != 0);
+    channel_config_set_irq_quiet(&config, quiet_irq != 0);
+    if (ring_size_bits)
+        channel_config_set_ring(&config, ring_on_write != 0, ring_size_bits);
+    if (chain_to >= 0)
+        channel_config_set_chain_to(&config, (uint32_t)chain_to);
     dma_channel_configure(channel, &config, write_address, read_address,
         dma_encode_transfer_count(transfer_count), start != 0);
     return 1;
@@ -4542,6 +4861,7 @@ int32_t bmx_pico_dma_abort(uint32_t channel) {
     for (uint32_t irq_line = 0; irq_line < 2; ++irq_line) {
         dma_irqn_acknowledge_channel(irq_line, channel);
         bmx_pico_dma_completion_events[irq_line][channel] = 0;
+        bmx_pico_dma_event_tokens[irq_line][channel] = 0;
         if (enabled_lines & (1u << irq_line))
             dma_irqn_set_channel_enabled(irq_line, channel, true);
     }
@@ -4585,6 +4905,16 @@ int32_t bmx_pico_dma_set_irq_enabled(uint32_t channel, uint32_t irq_line,
     return 1;
 }
 
+int32_t bmx_pico_dma_set_event_token(uint32_t channel, uint32_t irq_line,
+        uint32_t token) {
+    if (get_core_num() != 0 || !bmx_pico_dma_channel_valid(channel) ||
+            !dma_channel_is_claimed(channel) || irq_line >= 2) return 0;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    bmx_pico_dma_event_tokens[irq_line][channel] = token;
+    restore_interrupts(interrupt_state);
+    return 1;
+}
+
 uint32_t bmx_pico_dma_pending_completion_events(uint32_t channel, uint32_t irq_line) {
     if (get_core_num() != 0 || !bmx_pico_dma_channel_valid(channel) || irq_line >= 2)
         return 0;
@@ -4601,10 +4931,81 @@ uint32_t bmx_pico_dma_take_completion_events(uint32_t channel, uint32_t irq_line
     return events;
 }
 
+typedef struct BMXPicoDMABufferHeader {
+    void *allocation;
+    uint32_t marker;
+} BMXPicoDMABufferHeader;
+
+#define BMX_PICO_DMA_BUFFER_MARKER 0x444d4142u
+
+void *bmx_pico_dma_buffer_allocate(uint32_t size, uint32_t alignment) {
+    if (!size || alignment < BMX_PICO_MEMORY_ALIGNMENT || alignment > 32768u ||
+            (alignment & (alignment - 1u)) != 0u ||
+            size > UINT32_MAX - alignment - sizeof(BMXPicoDMABufferHeader)) return NULL;
+    void *allocation = bbMemAlloc(size + alignment - 1u + sizeof(BMXPicoDMABufferHeader));
+    if (!allocation) return NULL;
+    uintptr_t first = (uintptr_t)allocation + sizeof(BMXPicoDMABufferHeader);
+    uintptr_t aligned = (first + alignment - 1u) & ~((uintptr_t)alignment - 1u);
+    BMXPicoDMABufferHeader *header = (BMXPicoDMABufferHeader *)aligned - 1;
+    header->allocation = allocation;
+    header->marker = BMX_PICO_DMA_BUFFER_MARKER;
+    return (void *)aligned;
+}
+
+void bmx_pico_dma_buffer_free(void *buffer) {
+    if (!buffer) return;
+    BMXPicoDMABufferHeader *header = (BMXPicoDMABufferHeader *)buffer - 1;
+    if (header->marker != BMX_PICO_DMA_BUFFER_MARKER || !header->allocation)
+        panic("BlitzMax Pico DMA buffer received an invalid pointer");
+    void *allocation = header->allocation;
+    header->marker = 0;
+    header->allocation = NULL;
+    bbMemFree(allocation);
+}
+
+uint32_t bmx_pico_dma_timer_count(void) {
+    return NUM_DMA_TIMERS;
+}
+
+int32_t bmx_pico_dma_claim_unused_timer(void) {
+    return get_core_num() == 0 ? dma_claim_unused_timer(false) : -1;
+}
+
+int32_t bmx_pico_dma_timer_is_claimed(uint32_t timer) {
+    return timer < NUM_DMA_TIMERS && dma_timer_is_claimed(timer);
+}
+
+int32_t bmx_pico_dma_timer_configure(uint32_t timer, uint32_t numerator,
+        uint32_t denominator) {
+    if (get_core_num() != 0 || timer >= NUM_DMA_TIMERS ||
+            !dma_timer_is_claimed(timer) || !numerator || !denominator ||
+            numerator > UINT16_MAX || denominator > UINT16_MAX ||
+            numerator > denominator) return 0;
+    dma_timer_set_fraction(timer, (uint16_t)numerator, (uint16_t)denominator);
+    return 1;
+}
+
+int32_t bmx_pico_dma_timer_unclaim(uint32_t timer) {
+    if (get_core_num() != 0 || timer >= NUM_DMA_TIMERS ||
+            !dma_timer_is_claimed(timer)) return 0;
+    dma_timer_set_fraction(timer, 0, 1);
+    dma_timer_unclaim(timer);
+    return 1;
+}
+
+uint32_t bmx_pico_dma_timer_dreq(uint32_t timer) {
+    return timer < NUM_DMA_TIMERS ? dma_get_timer_dreq(timer) : UINT32_MAX;
+}
+
 void bmx_pico_delay(int32_t milliseconds) {
     if (milliseconds > 0) sleep_ms((uint32_t)milliseconds);
 }
 
 void bmx_pico_udelay(int32_t microseconds) {
     if (microseconds > 0) sleep_us((uint64_t)(uint32_t)microseconds);
+}
+
+void bmx_pico_system_wait(void) {
+    if (bmx_pico_event_pending()) return;
+    __wfe();
 }

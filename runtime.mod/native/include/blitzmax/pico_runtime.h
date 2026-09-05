@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+/* Abstract method thunks emitted by bcc2 call the BRL.Blitz trap directly. */
+void brl_blitz_NullMethodError(void);
+
 /* Scalar BRL.Blitz intrinsics. Functions, rather than macros, preserve the
    BlitzMax rule that each argument expression is evaluated exactly once. */
 #define BMX_PICO_MINMAX(type, suffix) \
@@ -265,6 +268,15 @@ void bmx_pico_stdio_flush(void);
 int32_t bmx_pico_putchar_raw(int32_t character);
 void bmx_pico_delay(int32_t milliseconds);
 void bmx_pico_udelay(int32_t microseconds);
+void bmx_pico_system_wait(void);
+int32_t bmx_pico_event_post_from_irq(uint32_t token, uint32_t event_data,
+    uint32_t detail);
+int32_t bmx_pico_event_post_from_irq_ex(uint32_t token, uint32_t event_data,
+    uint32_t event_mods, uint32_t event_x, uint32_t event_y);
+int32_t bmx_pico_event_take(uint32_t *token, uint32_t *event_data,
+    uint32_t *event_mods, uint32_t *event_x, uint32_t *event_y);
+uint32_t bmx_pico_event_pending(void);
+uint32_t bmx_pico_event_dropped(void);
 uint32_t bmx_pico_string_failure_count(void);
 uint32_t bmx_pico_string_allocation_count(void);
 uint32_t bmx_pico_string_allocated_bytes(void);
@@ -496,6 +508,7 @@ int32_t bmx_pico_gpio_get_slew_rate(uint32_t gpio);
 void bmx_pico_gpio_set_drive_strength(uint32_t gpio, int32_t drive_strength);
 int32_t bmx_pico_gpio_get_drive_strength(uint32_t gpio);
 int32_t bmx_pico_gpio_set_irq_enabled(uint32_t gpio, uint32_t event_mask, int32_t enabled);
+int32_t bmx_pico_gpio_set_event_token(uint32_t gpio, uint32_t token);
 uint32_t bmx_pico_gpio_pending_irq_events(uint32_t gpio);
 uint32_t bmx_pico_gpio_take_irq_events(uint32_t gpio);
 
@@ -660,6 +673,19 @@ int32_t bmx_pico_uart_set_break(int32_t controller, int32_t enabled);
 int32_t bmx_pico_uart_set_translate_crlf(int32_t controller, int32_t enabled);
 uint32_t bmx_pico_uart_get_errors(int32_t controller);
 void bmx_pico_uart_clear_errors(int32_t controller);
+int32_t bmx_pico_uart_async_open(int32_t controller, uint32_t rx_capacity,
+    uint32_t tx_capacity, uint32_t rx_token, uint32_t tx_token,
+    uint32_t error_token);
+int32_t bmx_pico_uart_async_close(int32_t controller);
+int32_t bmx_pico_uart_async_is_open(int32_t controller);
+int32_t bmx_pico_uart_async_read(int32_t controller, void *destination,
+    int32_t capacity);
+int32_t bmx_pico_uart_async_write(int32_t controller, void *source,
+    int32_t length);
+uint32_t bmx_pico_uart_async_read_available(int32_t controller);
+uint32_t bmx_pico_uart_async_write_available(int32_t controller);
+uint32_t bmx_pico_uart_async_rx_dropped(int32_t controller);
+int32_t bmx_pico_uart_async_tx_idle(int32_t controller);
 
 typedef int32_t (*BMXPicoPIOProgramInitializer)(void *instance, uint32_t state_machine,
     uint32_t offset);
@@ -754,14 +780,31 @@ int32_t bmx_pico_dma_unclaim_channel(uint32_t channel);
 int32_t bmx_pico_dma_configure(uint32_t channel, void *read_address, void *write_address,
     uint32_t transfer_count, uint32_t data_size, int32_t read_increment,
     int32_t write_increment, uint32_t dreq, int32_t start);
+int32_t bmx_pico_dma_configure_advanced(uint32_t channel, void *read_address,
+    void *write_address, uint32_t transfer_count, uint32_t data_size,
+    int32_t read_increment, int32_t write_increment, uint32_t dreq,
+    int32_t high_priority, int32_t byte_swap, int32_t quiet_irq,
+    uint32_t ring_size_bits, int32_t ring_on_write, int32_t chain_to,
+    int32_t start);
 int32_t bmx_pico_dma_start(uint32_t channel);
 int32_t bmx_pico_dma_abort(uint32_t channel);
 int32_t bmx_pico_dma_busy(uint32_t channel);
 uint32_t bmx_pico_dma_remaining(uint32_t channel);
 int32_t bmx_pico_dma_set_irq_enabled(uint32_t channel, uint32_t irq_line,
     int32_t enabled);
+int32_t bmx_pico_dma_set_event_token(uint32_t channel, uint32_t irq_line,
+    uint32_t token);
 uint32_t bmx_pico_dma_pending_completion_events(uint32_t channel, uint32_t irq_line);
 uint32_t bmx_pico_dma_take_completion_events(uint32_t channel, uint32_t irq_line);
+void *bmx_pico_dma_buffer_allocate(uint32_t size, uint32_t alignment);
+void bmx_pico_dma_buffer_free(void *buffer);
+uint32_t bmx_pico_dma_timer_count(void);
+int32_t bmx_pico_dma_claim_unused_timer(void);
+int32_t bmx_pico_dma_timer_is_claimed(uint32_t timer);
+int32_t bmx_pico_dma_timer_configure(uint32_t timer, uint32_t numerator,
+    uint32_t denominator);
+int32_t bmx_pico_dma_timer_unclaim(uint32_t timer);
+uint32_t bmx_pico_dma_timer_dreq(uint32_t timer);
 void *bmx_pico_pio_find_program(const BMXPicoString *name);
 uint16_t *bmx_pico_pio_program_instructions(void *program);
 uint32_t bmx_pico_pio_program_length(void *program);
