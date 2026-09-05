@@ -25,6 +25,10 @@ If Not pacer Then Throw "Unable to claim DMA pacing timer"
 
 Local settings:SDMAConfig = New SDMAConfig(DMADataSize8, True, True, pacer.DREQ())
 settings.HighPriority = True
+If settings.DataSize <> DMADataSize8 Or Not settings.ReadIncrement Or ..
+		Not settings.WriteIncrement Or settings.DREQ <> pacer.DREQ() Then
+	Throw "DMA configuration constructor did not preserve its arguments"
+End If
 
 Local transfer:TDMATransfer = DMAAdvancedTransfer(sourceBuffer.Address(), ..
 	destinationBuffer.Address(), sourceBuffer.ElementCount(), settings, ..

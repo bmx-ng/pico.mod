@@ -46,10 +46,10 @@ Struct SDMAConfig
 	Field ChainTo:Int = DMANoChain
 
 	Method New(dataSize:UInt, readIncrement:Int, writeIncrement:Int, dreq:UInt)
-		DataSize = dataSize
-		ReadIncrement = readIncrement
-		WriteIncrement = writeIncrement
-		DREQ = dreq
+		Self.DataSize = dataSize
+		Self.ReadIncrement = readIncrement
+		Self.WriteIncrement = writeIncrement
+		Self.DREQ = dreq
 	End Method
 End Struct
 
