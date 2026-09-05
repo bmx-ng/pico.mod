@@ -37,6 +37,7 @@ The namespace includes:
 - `Pico.System.Time`
 - `Pico.System.Power`
 - `Pico.System.Device`
+- `Pico.IO.BufferedUART`
 - `Pico.IO.StandardIO`
 
 The target also reuses compatible standard modules such as `BRL.Blitz`,
@@ -145,7 +146,12 @@ The Pico runtime supports normal compiled scalar code, strings, arrays,
 objects, inheritance, interfaces, structs, enums, generics, closures,
 exceptions, finalizers, streams, block-memory operations, Incbin resources,
 and precise managed collection. Native interrupt handlers record events for
-BlitzMax code to consume outside interrupt context.
+BlitzMax code to consume outside interrupt context. GPIO events retain the
+64-bit microsecond timestamp captured by the native IRQ callback. DMA supports
+managed-buffer retention, completion events, pacing timers, chaining, ring
+addressing, priority, byte swapping, and quiet IRQs. `Pico.IO.BufferedUART`
+provides interrupt-driven RX/TX rings through `TStream` and standard event
+queue integration.
 
 `Pico.System.Power` provides interrupt and timed clock-gated sleep on both
 processors, GPIO-triggered dormant sleep on both processors, and timed dormant
