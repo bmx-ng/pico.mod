@@ -20,11 +20,16 @@
 #include "pico/bootrom.h"
 #include "pico/aon_timer.h"
 #include "pico/flash.h"
+#include "pico/platform/sections.h"
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
 
 #ifndef BMX_PICO_ARENA_SIZE
 #define BMX_PICO_ARENA_SIZE (16u * 1024u)
+#endif
+
+#ifndef BMX_PICO_ARENA_IN_PSRAM
+#define BMX_PICO_ARENA_IN_PSRAM 0
 #endif
 
 #ifndef BMX_PICO_FLASH_BYTES
@@ -83,7 +88,12 @@ _Static_assert(sizeof(BMXPicoHeapBlock) % BMX_PICO_MEMORY_ALIGNMENT == 0,
 #define BMX_PICO_HEAP_BLOCK_STRING 0x0020u
 #define BMX_PICO_HEAP_BLOCK_RAW 0x0040u
 
+#if BMX_PICO_ARENA_IN_PSRAM
+static _Alignas(BMX_PICO_MEMORY_ALIGNMENT) uint8_t
+    __uninitialized_psram("blitzmax_arena") bmx_pico_arena[BMX_PICO_ARENA_SIZE];
+#else
 static _Alignas(BMX_PICO_MEMORY_ALIGNMENT) uint8_t bmx_pico_arena[BMX_PICO_ARENA_SIZE];
+#endif
 
 static uint32_t bmx_pico_arena_offset;
 static uint32_t bmx_pico_arena_high_water_mark;
