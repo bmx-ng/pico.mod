@@ -454,6 +454,9 @@ uint32_t bmx_pico_arena_remaining(void);
 uint32_t bmx_pico_arena_high_water(void);
 uint32_t bmx_pico_arena_allocation_count(void);
 uint32_t bmx_pico_arena_failure_count(void);
+int32_t bmx_pico_psram_available(void);
+uint32_t bmx_pico_psram_capacity(void);
+int32_t bmx_pico_psram_contains(void *address);
 
 uint32_t bmx_pico_watchdog_maximum_delay_ms(void);
 int32_t bmx_pico_watchdog_enable(uint32_t delay_ms, int32_t pause_on_debug);

@@ -27,6 +27,7 @@ The namespace includes:
 - `Pico.Hardware.DMA`
 - `Pico.Hardware.I2C`
 - `Pico.Hardware.PIO`
+- `Pico.Hardware.PSRAM`
 - `Pico.Hardware.PWM`
 - `Pico.Hardware.SPI`
 - `Pico.Hardware.UART`
@@ -98,16 +99,21 @@ line information. Debug-probe launching is a separate OpenOCD/GDB step.
 | `-board <name>` | Use another board definition from the selected Pico SDK |
 | `-heap auto` | Use the board-aware managed heap; this is the default |
 | `-heap <size>` | Set the managed heap in bytes or with `k`, `KiB`, `m`, or `MiB` |
+| `-heap-region sram` | Place the managed heap in internal SRAM; this is the default |
+| `-heap-region psram` | Place the managed heap in board-defined external PSRAM |
 | `-storage none` | Do not reserve persistent flash; this is the default |
 | `-storage <size>` | Reserve sector-aligned persistent flash, for example `-storage 256k` |
 | `-x` | Upload, verify, and start through `picotool` |
 | `-d` | Build with source-level GDB information |
 | `-r` | Build optimised release firmware |
 
-The automatic managed heap is 192 KiB on RP2040 and 384 KiB on ARM RP2350.
-External PSRAM is not used automatically. After linking, bmk reports the
-board-configured flash capacity, managed-heap use, other internal RAM use, and
-remaining internal-RAM headroom.
+The automatic internal-SRAM managed heap is 192 KiB on RP2040 and 384 KiB on
+ARM RP2350. External PSRAM is never selected implicitly. On boards whose SDK
+definition publishes a fixed PSRAM capacity, `-heap-region psram -heap auto`
+uses that capacity while leaving 64 KiB outside the managed arena. Import `Pico.Hardware.PSRAM`
+to query availability and capacity or test whether an address lies in PSRAM.
+After linking, bmk reports flash, internal RAM, managed-heap placement, PSRAM,
+and the applicable reserves and headroom.
 
 Importing `Pico.Storage.LittleFS` installs LittleFS as the default
 `BRL.FileSystem` backend, so ordinary paths work with familiar APIs including
@@ -132,6 +138,7 @@ Tool locations can be set in `custom.bmk`:
 #addoption pico.pioasm "/path/to/pioasm"
 #addoption pico.board.header.dirs "/path/to/custom/board/headers"
 #addoption pico.board.cmake.dirs "/path/to/custom/board/cmake"
+#addoption pico.heap.region "psram"
 #addoption pico.storage "256k"
 ```
 
