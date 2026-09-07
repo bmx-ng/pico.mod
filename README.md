@@ -154,7 +154,11 @@ objects, inheritance, interfaces, structs, enums, generics, closures,
 exceptions, finalizers, streams, block-memory operations, Incbin resources,
 and precise managed collection. Native interrupt handlers record events for
 BlitzMax code to consume outside interrupt context. GPIO events retain the
-64-bit microsecond timestamp captured by the native IRQ callback. DMA supports
+64-bit microsecond timestamp captured by the native IRQ callback. PIO supports
+imported `pioasm` programs, semantic state-machine configuration layered over
+generated defaults, managed state-machine ownership, synchronized starts,
+DMA/FIFO access, and timestamped `BRL.EventQueue` IRQ delivery. RP2350 builds
+also expose PIO2, extended FIFO joins and GPIO-base selection. DMA supports
 managed-buffer retention, completion events, pacing timers, chaining, ring
 addressing, priority, byte swapping, and quiet IRQs. `Pico.IO.BufferedUART`
 provides interrupt-driven RX/TX rings through `TStream` and standard event

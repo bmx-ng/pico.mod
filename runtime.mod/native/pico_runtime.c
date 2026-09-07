@@ -4153,6 +4153,88 @@ static int32_t bmx_pico_pio_pin_span_valid(uint32_t pin_base, uint32_t pin_count
         pin_count <= NUM_BANK0_GPIOS - pin_base;
 }
 
+int32_t bmx_pico_pio_apply_config_overrides(void *config_pointer,
+        const BMXPicoPIOStateMachineConfig *settings) {
+    pio_sm_config *config = config_pointer;
+    if (!config) return 0;
+    if (!settings) return 1;
+    const uint32_t supported = (BMX_PICO_PIO_CONFIG_MOV_STATUS << 1) - 1u;
+    if (settings->overrides & ~supported) return 0;
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_CLOCK_DIVIDER) {
+        if (!(settings->clock_divider >= 1.0f && settings->clock_divider <= 65536.0f))
+            return 0;
+        sm_config_set_clkdiv(config, settings->clock_divider);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_OUT_PINS) {
+        if (!bmx_pico_pio_pin_span_valid(settings->out_pin_base,
+                settings->out_pin_count)) return 0;
+        sm_config_set_out_pins(config, settings->out_pin_base, settings->out_pin_count);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_SET_PINS) {
+        if (!bmx_pico_pio_pin_span_valid(settings->set_pin_base,
+                settings->set_pin_count) || settings->set_pin_count > 5) return 0;
+        sm_config_set_set_pins(config, settings->set_pin_base, settings->set_pin_count);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_IN_PINS) {
+        if (settings->in_pin_base >= NUM_BANK0_GPIOS) return 0;
+        sm_config_set_in_pins(config, settings->in_pin_base);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_SIDESET_PINS) {
+        if (settings->sideset_pin_base >= NUM_BANK0_GPIOS) return 0;
+        sm_config_set_sideset_pins(config, settings->sideset_pin_base);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_JUMP_PIN) {
+        if (settings->jump_pin >= NUM_BANK0_GPIOS) return 0;
+        sm_config_set_jmp_pin(config, settings->jump_pin);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_IN_SHIFT) {
+        if (settings->push_threshold > 32) return 0;
+        sm_config_set_in_shift(config, settings->in_shift_right != 0,
+            settings->autopush != 0, settings->push_threshold);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_OUT_SHIFT) {
+        if (settings->pull_threshold > 32) return 0;
+        sm_config_set_out_shift(config, settings->out_shift_right != 0,
+            settings->autopull != 0, settings->pull_threshold);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_FIFO_JOIN) {
+        if (settings->fifo_join != PIO_FIFO_JOIN_NONE &&
+                settings->fifo_join != PIO_FIFO_JOIN_TX &&
+                settings->fifo_join != PIO_FIFO_JOIN_RX
+#if PICO_PIO_VERSION > 0
+                && settings->fifo_join != PIO_FIFO_JOIN_TXGET
+                && settings->fifo_join != PIO_FIFO_JOIN_TXPUT
+                && settings->fifo_join != PIO_FIFO_JOIN_PUTGET
+#endif
+                ) return 0;
+        sm_config_set_fifo_join(config, (enum pio_fifo_join)settings->fifo_join);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_SIDESET) {
+        if (settings->sideset_bit_count > 5 ||
+                (settings->sideset_optional && !settings->sideset_bit_count)) return 0;
+        sm_config_set_sideset(config, settings->sideset_bit_count,
+            settings->sideset_optional != 0, settings->sideset_pindirs != 0);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_OUT_SPECIAL) {
+        if (settings->out_enable_bit_index > 31) return 0;
+        sm_config_set_out_special(config, settings->out_sticky != 0,
+            settings->out_has_enable_pin != 0, settings->out_enable_bit_index);
+    }
+    if (settings->overrides & BMX_PICO_PIO_CONFIG_MOV_STATUS) {
+        if (settings->mov_status_threshold > 31 ||
+                (settings->mov_status_type != STATUS_TX_LESSTHAN &&
+                 settings->mov_status_type != STATUS_RX_LESSTHAN
+#if PICO_PIO_VERSION > 0
+                 && settings->mov_status_type != STATUS_IRQ_SET
+#endif
+                 )) return 0;
+        sm_config_set_mov_status(config,
+            (enum pio_mov_status_type)settings->mov_status_type,
+            settings->mov_status_threshold);
+    }
+    return 1;
+}
+
 static uint32_t bmx_pico_pio_loaded_programs[NUM_PIOS];
 
 static uint32_t bmx_pico_pio_program_mask(uint32_t length, uint32_t offset) {
@@ -4282,7 +4364,19 @@ int32_t bmx_pico_pio_sm_init_imported_program(int32_t controller, uint32_t state
     if (!bmx_pico_pio_state_machine_valid(pio, state_machine) || !program ||
             !program->initialize || offset >= PIO_INSTRUCTION_COUNT ||
             program->length > PIO_INSTRUCTION_COUNT - offset) return PICO_ERROR_INVALID_ARG;
-    return program->initialize(pio, state_machine, offset);
+    return program->initialize(pio, state_machine, offset, NULL);
+}
+
+int32_t bmx_pico_pio_sm_init_imported_program_configured(int32_t controller,
+        uint32_t state_machine, void *handle, uint32_t offset, void *config_pointer) {
+    const BMXPicoPIOProgramDescriptor *program = handle;
+    const BMXPicoPIOStateMachineConfig *config = config_pointer;
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!bmx_pico_pio_state_machine_valid(pio, state_machine) || !program ||
+            !program->initialize || !config || offset >= PIO_INSTRUCTION_COUNT ||
+            program->length > PIO_INSTRUCTION_COUNT - offset)
+        return PICO_ERROR_INVALID_ARG;
+    return program->initialize(pio, state_machine, offset, config);
 }
 
 int32_t bmx_pico_pio_remove_program(int32_t controller, uint32_t length, uint32_t offset) {
@@ -4329,6 +4423,17 @@ int32_t bmx_pico_pio_gpio_init(int32_t controller, uint32_t pin) {
     return 1;
 }
 
+uint32_t bmx_pico_pio_gpio_base(int32_t controller) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    return pio ? pio_get_gpio_base(pio) : UINT32_MAX;
+}
+
+int32_t bmx_pico_pio_set_gpio_base(int32_t controller, uint32_t gpio_base) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!pio || (gpio_base != 0 && gpio_base != 16)) return 0;
+    return pio_set_gpio_base(pio, gpio_base) == PICO_OK;
+}
+
 int32_t bmx_pico_pio_sm_set_consecutive_pin_directions(int32_t controller,
         uint32_t state_machine, uint32_t pin_base, uint32_t pin_count, int32_t output) {
     PIO pio = bmx_pico_pio_instance(controller);
@@ -4344,6 +4449,18 @@ int32_t bmx_pico_pio_sm_init(int32_t controller, uint32_t state_machine,
     if (!bmx_pico_pio_state_machine_valid(pio, state_machine) ||
             initial_pc >= PIO_INSTRUCTION_COUNT) return PICO_ERROR_INVALID_ARG;
     return pio_sm_init(pio, state_machine, initial_pc, NULL);
+}
+
+int32_t bmx_pico_pio_sm_init_configured(int32_t controller, uint32_t state_machine,
+        uint32_t initial_pc, void *settings_pointer) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    const BMXPicoPIOStateMachineConfig *settings = settings_pointer;
+    if (!bmx_pico_pio_state_machine_valid(pio, state_machine) || !settings ||
+            initial_pc >= PIO_INSTRUCTION_COUNT) return PICO_ERROR_INVALID_ARG;
+    pio_sm_config config = pio_get_default_sm_config();
+    if (!bmx_pico_pio_apply_config_overrides(&config, settings))
+        return PICO_ERROR_INVALID_ARG;
+    return pio_sm_init(pio, state_machine, initial_pc, &config);
 }
 
 int32_t bmx_pico_pio_sm_set_wrap(int32_t controller, uint32_t state_machine,
@@ -4418,6 +4535,43 @@ int32_t bmx_pico_pio_sm_set_enabled(int32_t controller, uint32_t state_machine,
     return 1;
 }
 
+static int32_t bmx_pico_pio_sm_mask_valid(uint32_t state_machine_mask) {
+    uint32_t supported = (1u << NUM_PIO_STATE_MACHINES) - 1u;
+    return state_machine_mask && !(state_machine_mask & ~supported);
+}
+
+int32_t bmx_pico_pio_sm_mask_set_enabled(int32_t controller,
+        uint32_t state_machine_mask, int32_t enabled) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!pio || !bmx_pico_pio_sm_mask_valid(state_machine_mask)) return 0;
+    pio_set_sm_mask_enabled(pio, state_machine_mask, enabled != 0);
+    return 1;
+}
+
+int32_t bmx_pico_pio_sm_mask_restart(int32_t controller,
+        uint32_t state_machine_mask) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!pio || !bmx_pico_pio_sm_mask_valid(state_machine_mask)) return 0;
+    pio_restart_sm_mask(pio, state_machine_mask);
+    return 1;
+}
+
+int32_t bmx_pico_pio_sm_mask_restart_clock_divider(int32_t controller,
+        uint32_t state_machine_mask) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!pio || !bmx_pico_pio_sm_mask_valid(state_machine_mask)) return 0;
+    pio_clkdiv_restart_sm_mask(pio, state_machine_mask);
+    return 1;
+}
+
+int32_t bmx_pico_pio_sm_mask_enable_synchronized(int32_t controller,
+        uint32_t state_machine_mask) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!pio || !bmx_pico_pio_sm_mask_valid(state_machine_mask)) return 0;
+    pio_enable_sm_mask_in_sync(pio, state_machine_mask);
+    return 1;
+}
+
 int32_t bmx_pico_pio_sm_restart(int32_t controller, uint32_t state_machine) {
     PIO pio = bmx_pico_pio_instance(controller);
     if (!bmx_pico_pio_state_machine_valid(pio, state_machine)) return 0;
@@ -4446,6 +4600,50 @@ int32_t bmx_pico_pio_sm_execute(int32_t controller, uint32_t state_machine,
     if (!bmx_pico_pio_state_machine_valid(pio, state_machine) || instruction > UINT16_MAX)
         return 0;
     pio_sm_exec(pio, state_machine, instruction);
+    return 1;
+}
+
+int32_t bmx_pico_pio_sm_execute_blocking(int32_t controller, uint32_t state_machine,
+        uint32_t instruction) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!bmx_pico_pio_state_machine_valid(pio, state_machine) || instruction > UINT16_MAX)
+        return 0;
+    pio_sm_exec_wait_blocking(pio, state_machine, instruction);
+    return 1;
+}
+
+int32_t bmx_pico_pio_sm_execute_stalled(int32_t controller, uint32_t state_machine) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    return bmx_pico_pio_state_machine_valid(pio, state_machine) &&
+        pio_sm_is_exec_stalled(pio, state_machine);
+}
+
+int32_t bmx_pico_pio_sm_drain_tx_fifo(int32_t controller, uint32_t state_machine) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (!bmx_pico_pio_state_machine_valid(pio, state_machine)) return 0;
+    pio_sm_drain_tx_fifo(pio, state_machine);
+    return 1;
+}
+
+int32_t bmx_pico_pio_sm_set_pins_masked(int32_t controller, uint32_t state_machine,
+        uint64_t pin_values, uint64_t pin_mask) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    uint64_t valid_mask = NUM_BANK0_GPIOS == 64 ? UINT64_MAX :
+        ((1ull << NUM_BANK0_GPIOS) - 1ull);
+    if (!bmx_pico_pio_state_machine_valid(pio, state_machine) || !pin_mask ||
+            (pin_mask & ~valid_mask)) return 0;
+    pio_sm_set_pins_with_mask64(pio, state_machine, pin_values, pin_mask);
+    return 1;
+}
+
+int32_t bmx_pico_pio_sm_set_pin_directions_masked(int32_t controller,
+        uint32_t state_machine, uint64_t pin_directions, uint64_t pin_mask) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    uint64_t valid_mask = NUM_BANK0_GPIOS == 64 ? UINT64_MAX :
+        ((1ull << NUM_BANK0_GPIOS) - 1ull);
+    if (!bmx_pico_pio_state_machine_valid(pio, state_machine) || !pin_mask ||
+            (pin_mask & ~valid_mask)) return 0;
+    pio_sm_set_pindirs_with_mask64(pio, state_machine, pin_directions, pin_mask);
     return 1;
 }
 
@@ -4541,6 +4739,8 @@ uint32_t bmx_pico_pio_sm_dreq(int32_t controller, uint32_t state_machine,
 
 static volatile uint32_t bmx_pico_pio_irq_events[NUM_PIOS][NUM_PIO_IRQS];
 static volatile uint32_t bmx_pico_pio_irq_source_masks[NUM_PIOS][NUM_PIO_IRQS];
+static volatile uint32_t bmx_pico_pio_irq_event_tokens[NUM_PIOS][NUM_PIO_IRQS];
+static volatile uint32_t bmx_pico_pio_irq_event_source_masks[NUM_PIOS][NUM_PIO_IRQS];
 static uint8_t bmx_pico_pio_irq_installed[NUM_PIOS][NUM_PIO_IRQS];
 
 static void bmx_pico_pio_irq_handler(uint32_t controller, uint32_t irq_line) {
@@ -4550,6 +4750,14 @@ static void bmx_pico_pio_irq_handler(uint32_t controller, uint32_t irq_line) {
     if (!pending) return;
     hw_clear_bits(&pio->irq_ctrl[irq_line].inte, pending);
     bmx_pico_pio_irq_events[controller][irq_line] |= pending;
+    uint32_t event_pending = pending &
+        bmx_pico_pio_irq_event_source_masks[controller][irq_line];
+    if (event_pending) {
+        uint64_t captured_at = time_us_64();
+        bmx_pico_event_post_from_irq_ex(
+            bmx_pico_pio_irq_event_tokens[controller][irq_line], event_pending, controller,
+            (uint32_t)captured_at, (uint32_t)(captured_at >> 32));
+    }
 }
 
 static void bmx_pico_pio0_irq0_handler(void) { bmx_pico_pio_irq_handler(0, 0); }
@@ -4608,6 +4816,24 @@ int32_t bmx_pico_pio_irq_set_sources_enabled(int32_t controller, uint32_t irq_li
     return 1;
 }
 
+int32_t bmx_pico_pio_irq_set_event_token(int32_t controller, uint32_t irq_line,
+        uint32_t source_mask, uint32_t token) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (get_core_num() != 0 || !pio || irq_line >= NUM_PIO_IRQS ||
+            (source_mask & ~PIO_INTR_BITS) || (token && !source_mask)) return 0;
+    uint32_t instance = PIO_NUM(pio);
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    if (token && bmx_pico_pio_irq_event_tokens[instance][irq_line] &&
+            bmx_pico_pio_irq_event_tokens[instance][irq_line] != token) {
+        restore_interrupts(interrupt_state);
+        return 0;
+    }
+    bmx_pico_pio_irq_event_tokens[instance][irq_line] = token;
+    bmx_pico_pio_irq_event_source_masks[instance][irq_line] = token ? source_mask : 0;
+    restore_interrupts(interrupt_state);
+    return 1;
+}
+
 uint32_t bmx_pico_pio_irq_enabled_sources(int32_t controller, uint32_t irq_line) {
     PIO pio = bmx_pico_pio_instance(controller);
     if (get_core_num() != 0 || !pio || irq_line >= NUM_PIO_IRQS) return 0;
@@ -4633,6 +4859,19 @@ uint32_t bmx_pico_pio_irq_take_events(int32_t controller, uint32_t irq_line) {
     uint32_t interrupt_state = save_and_disable_interrupts();
     uint32_t events = bmx_pico_pio_irq_events[PIO_NUM(pio)][irq_line];
     bmx_pico_pio_irq_events[PIO_NUM(pio)][irq_line] = 0;
+    restore_interrupts(interrupt_state);
+    return events;
+}
+
+uint32_t bmx_pico_pio_irq_take_events_masked(int32_t controller, uint32_t irq_line,
+        uint32_t source_mask) {
+    PIO pio = bmx_pico_pio_instance(controller);
+    if (get_core_num() != 0 || !pio || irq_line >= NUM_PIO_IRQS || !source_mask ||
+            (source_mask & ~PIO_INTR_BITS)) return 0;
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t instance = PIO_NUM(pio);
+    uint32_t events = bmx_pico_pio_irq_events[instance][irq_line] & source_mask;
+    bmx_pico_pio_irq_events[instance][irq_line] &= ~source_mask;
     restore_interrupts(interrupt_state);
     return events;
 }

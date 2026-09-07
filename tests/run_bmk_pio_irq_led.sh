@@ -12,8 +12,14 @@ trap 'rm -rf "$work_dir"' EXIT
 	-o "$work_dir/pio_irq_led" \
 	"$module_root/examples/pio_irq_led.bmx"
 
+"$bmk" makeapp -a -r -l pico -g arm -board "$board" -heap 24k \
+	-o "$work_dir/pio_irq_event_queue" \
+	"$module_root/examples/pio_irq_event_queue.bmx"
+
 test -s "$work_dir/pio_irq_led.elf"
 test -s "$work_dir/pio_irq_led.uf2"
+test -s "$work_dir/pio_irq_event_queue.elf"
+test -s "$work_dir/pio_irq_event_queue.uf2"
 
 build_dir="$module_root/examples/.bmx/pio_irq_led.release.pico.arm.$board"
 generated_header="$build_dir/generated/pio/0/pio_irq_led.pio.h"
@@ -24,6 +30,7 @@ rg -q '#define irq_led_pio_version 0' "$generated_header"
 rg -q '[.]length = 5' "$generated_header"
 rg -q 'irq    nowait 0' "$generated_header"
 rg -q '"irq_led"' "$generated_registry"
+rg -q 'bmx_pico_pio_apply_config_overrides' "$generated_registry"
 
 toolchain="${PICO_TOOLCHAIN_PATH:-}"
 if [[ -z "$toolchain" ]]; then
@@ -42,4 +49,9 @@ rg -q ' T bmx_pico_pio_irq_rearm_sources$' <<<"$symbols"
 rg -q ' T bmx_pico_pio_irq_set_sources_enabled$' <<<"$symbols"
 rg -q ' T bmx_pico_pio_irq_take_events$' <<<"$symbols"
 
-echo "Pico PIO IRQ image: board=$board text=$text_size bss=$bss_size"
+event_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/pio_irq_event_queue.elf")"
+rg -q ' T bmx_pico_pio_irq_set_event_token$' <<<"$event_symbols"
+rg -q ' T bmx_pico_pio_irq_take_events_masked$' <<<"$event_symbols"
+rg -q ' T bmx_pico_pio_sm_init_imported_program_configured$' <<<"$event_symbols"
+
+echo "Pico PIO IRQ images passed: board=$board text=$text_size bss=$bss_size"

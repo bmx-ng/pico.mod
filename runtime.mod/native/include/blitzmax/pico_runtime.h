@@ -690,8 +690,51 @@ uint32_t bmx_pico_uart_async_write_available(int32_t controller);
 uint32_t bmx_pico_uart_async_rx_dropped(int32_t controller);
 int32_t bmx_pico_uart_async_tx_idle(int32_t controller);
 
+#define BMX_PICO_PIO_CONFIG_CLOCK_DIVIDER (1u << 0)
+#define BMX_PICO_PIO_CONFIG_OUT_PINS       (1u << 1)
+#define BMX_PICO_PIO_CONFIG_SET_PINS       (1u << 2)
+#define BMX_PICO_PIO_CONFIG_IN_PINS        (1u << 3)
+#define BMX_PICO_PIO_CONFIG_SIDESET_PINS   (1u << 4)
+#define BMX_PICO_PIO_CONFIG_JUMP_PIN       (1u << 5)
+#define BMX_PICO_PIO_CONFIG_IN_SHIFT       (1u << 6)
+#define BMX_PICO_PIO_CONFIG_OUT_SHIFT      (1u << 7)
+#define BMX_PICO_PIO_CONFIG_FIFO_JOIN      (1u << 8)
+#define BMX_PICO_PIO_CONFIG_SIDESET        (1u << 9)
+#define BMX_PICO_PIO_CONFIG_OUT_SPECIAL    (1u << 10)
+#define BMX_PICO_PIO_CONFIG_MOV_STATUS     (1u << 11)
+
+typedef struct BMXPicoPIOStateMachineConfig {
+    uint32_t overrides;
+    float clock_divider;
+    uint32_t out_pin_base;
+    uint32_t out_pin_count;
+    uint32_t set_pin_base;
+    uint32_t set_pin_count;
+    uint32_t in_pin_base;
+    uint32_t sideset_pin_base;
+    uint32_t jump_pin;
+    uint32_t in_shift_right;
+    uint32_t autopush;
+    uint32_t push_threshold;
+    uint32_t out_shift_right;
+    uint32_t autopull;
+    uint32_t pull_threshold;
+    uint32_t fifo_join;
+    uint32_t sideset_bit_count;
+    uint32_t sideset_optional;
+    uint32_t sideset_pindirs;
+    uint32_t out_sticky;
+    uint32_t out_has_enable_pin;
+    uint32_t out_enable_bit_index;
+    uint32_t mov_status_type;
+    uint32_t mov_status_threshold;
+} BMXPicoPIOStateMachineConfig;
+
+int32_t bmx_pico_pio_apply_config_overrides(void *config,
+    const BMXPicoPIOStateMachineConfig *overrides);
+
 typedef int32_t (*BMXPicoPIOProgramInitializer)(void *instance, uint32_t state_machine,
-    uint32_t offset);
+    uint32_t offset, const BMXPicoPIOStateMachineConfig *overrides);
 
 typedef struct BMXPicoPIOProgramDescriptor {
     const char *name;
@@ -721,9 +764,13 @@ int32_t bmx_pico_pio_claim_unused_state_machine(int32_t controller);
 int32_t bmx_pico_pio_unclaim_state_machine(int32_t controller, uint32_t state_machine);
 int32_t bmx_pico_pio_state_machine_is_claimed(int32_t controller, uint32_t state_machine);
 int32_t bmx_pico_pio_gpio_init(int32_t controller, uint32_t pin);
+uint32_t bmx_pico_pio_gpio_base(int32_t controller);
+int32_t bmx_pico_pio_set_gpio_base(int32_t controller, uint32_t gpio_base);
 int32_t bmx_pico_pio_sm_set_consecutive_pin_directions(int32_t controller,
     uint32_t state_machine, uint32_t pin_base, uint32_t pin_count, int32_t output);
 int32_t bmx_pico_pio_sm_init(int32_t controller, uint32_t state_machine, uint32_t initial_pc);
+int32_t bmx_pico_pio_sm_init_configured(int32_t controller, uint32_t state_machine,
+    uint32_t initial_pc, void *config);
 int32_t bmx_pico_pio_sm_set_wrap(int32_t controller, uint32_t state_machine,
     uint32_t wrap_target, uint32_t wrap);
 int32_t bmx_pico_pio_sm_set_out_pins(int32_t controller, uint32_t state_machine,
@@ -740,11 +787,26 @@ int32_t bmx_pico_pio_sm_set_clock_divider(int32_t controller, uint32_t state_mac
     float divider);
 int32_t bmx_pico_pio_sm_set_enabled(int32_t controller, uint32_t state_machine,
     int32_t enabled);
+int32_t bmx_pico_pio_sm_mask_set_enabled(int32_t controller, uint32_t state_machine_mask,
+    int32_t enabled);
+int32_t bmx_pico_pio_sm_mask_restart(int32_t controller, uint32_t state_machine_mask);
+int32_t bmx_pico_pio_sm_mask_restart_clock_divider(int32_t controller,
+    uint32_t state_machine_mask);
+int32_t bmx_pico_pio_sm_mask_enable_synchronized(int32_t controller,
+    uint32_t state_machine_mask);
 int32_t bmx_pico_pio_sm_restart(int32_t controller, uint32_t state_machine);
 int32_t bmx_pico_pio_sm_restart_clock_divider(int32_t controller, uint32_t state_machine);
 int32_t bmx_pico_pio_sm_clear_fifos(int32_t controller, uint32_t state_machine);
 int32_t bmx_pico_pio_sm_execute(int32_t controller, uint32_t state_machine,
     uint32_t instruction);
+int32_t bmx_pico_pio_sm_execute_blocking(int32_t controller, uint32_t state_machine,
+    uint32_t instruction);
+int32_t bmx_pico_pio_sm_execute_stalled(int32_t controller, uint32_t state_machine);
+int32_t bmx_pico_pio_sm_drain_tx_fifo(int32_t controller, uint32_t state_machine);
+int32_t bmx_pico_pio_sm_set_pins_masked(int32_t controller, uint32_t state_machine,
+    uint64_t pin_values, uint64_t pin_mask);
+int32_t bmx_pico_pio_sm_set_pin_directions_masked(int32_t controller,
+    uint32_t state_machine, uint64_t pin_directions, uint64_t pin_mask);
 uint32_t bmx_pico_pio_sm_program_counter(int32_t controller, uint32_t state_machine);
 int32_t bmx_pico_pio_sm_tx_full(int32_t controller, uint32_t state_machine);
 int32_t bmx_pico_pio_sm_tx_empty(int32_t controller, uint32_t state_machine);
@@ -765,14 +827,20 @@ uint32_t bmx_pico_pio_interrupt_count(void);
 uint32_t bmx_pico_pio_irq_supported_sources(void);
 int32_t bmx_pico_pio_irq_set_sources_enabled(int32_t controller, uint32_t irq_line,
     uint32_t source_mask, int32_t enabled);
+int32_t bmx_pico_pio_irq_set_event_token(int32_t controller, uint32_t irq_line,
+    uint32_t source_mask, uint32_t token);
 uint32_t bmx_pico_pio_irq_enabled_sources(int32_t controller, uint32_t irq_line);
 uint32_t bmx_pico_pio_irq_armed_sources(int32_t controller, uint32_t irq_line);
 uint32_t bmx_pico_pio_irq_pending_events(int32_t controller, uint32_t irq_line);
 uint32_t bmx_pico_pio_irq_take_events(int32_t controller, uint32_t irq_line);
+uint32_t bmx_pico_pio_irq_take_events_masked(int32_t controller, uint32_t irq_line,
+    uint32_t source_mask);
 int32_t bmx_pico_pio_irq_rearm_sources(int32_t controller, uint32_t irq_line,
     uint32_t source_mask);
 int32_t bmx_pico_pio_interrupt_is_set(int32_t controller, uint32_t interrupt_number);
 int32_t bmx_pico_pio_interrupt_clear(int32_t controller, uint32_t interrupt_number);
+int32_t bmx_pico_pio_sm_init_imported_program_configured(int32_t controller,
+    uint32_t state_machine, void *handle, uint32_t offset, void *config);
 
 uint32_t bmx_pico_dma_channel_count(void);
 uint32_t bmx_pico_dma_irq_line_count(void);
