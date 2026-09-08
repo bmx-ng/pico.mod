@@ -103,6 +103,8 @@ line information. Debug-probe launching is a separate OpenOCD/GDB step.
 | `-heap-region psram` | Place the managed heap in board-defined external PSRAM |
 | `-storage none` | Do not reserve persistent flash; this is the default |
 | `-storage <size>` | Reserve sector-aligned persistent flash, for example `-storage 256k` |
+| `-float-abi auto` | Use soft on RP2040 and softfp with hardware floating point on RP2350; this is the default |
+| `-float-abi hard` | Use the hard-float calling convention on ARM RP2350 |
 | `-x` | Upload, verify, and start through `picotool` |
 | `-d` | Build with source-level GDB information |
 | `-r` | Build optimised release firmware |
@@ -140,12 +142,14 @@ Tool locations can be set in `custom.bmk`:
 #addoption pico.board.cmake.dirs "/path/to/custom/board/cmake"
 #addoption pico.heap.region "psram"
 #addoption pico.storage "256k"
+#addoption pico.float.abi "hard"
 ```
 
 The corresponding environment variables are `PICO_SDK_PATH`,
 `PICO_TOOLCHAIN_PATH`, `PICO_CMAKE`, `PICO_NINJA`, `PICOTOOL_DIR`, and
-`PICO_PIOASM_DIR`, plus `PICO_BOARD_HEADER_DIRS` and
-`PICO_BOARD_CMAKE_DIRS` for custom boards.
+`PICO_PIOASM_DIR`, plus `PICO_BOARD_HEADER_DIRS`, `PICO_BOARD_CMAKE_DIRS`, and
+`PICO_FLOAT_ABI`. The hard-float ABI is an RP2350-only build option; the
+default already uses the RP2350 hardware FPU through the softfp ABI.
 
 ## Current scope
 
