@@ -173,10 +173,12 @@ queue integration.
 
 On wireless board definitions, `Pico.Network.WiFi` initializes the CYW43 radio,
 controls its GPIO 0 output (the onboard LED on official Pico W boards), and
-delivers asynchronous scan results through `BRL.EventQueue`. The initial slice
-does not yet link lwIP, join access points, assign IP addresses, or provide
-sockets. Applications which do not import the module do not link the wireless
-driver or firmware.
+delivers asynchronous scan and link-state results through `BRL.EventQueue`.
+Station connections use lwIP DHCP and expose their IPv4 address, netmask and
+gateway. The current bare-metal integration uses lwIP's callback-driven core;
+BlitzMax sockets and higher-level network clients are not yet provided.
+Applications which do not import the module do not link lwIP, the wireless
+driver, or its firmware.
 
 `Pico.System.Power` provides interrupt and timed clock-gated sleep on both
 processors, GPIO-triggered dormant sleep on both processors, and timed dormant

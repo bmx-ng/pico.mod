@@ -12,6 +12,9 @@ for board in pico_w pico2_w; do
 		-o "$work_dir/wifi-scan-$board" "$module_root/examples/wifi_scan.bmx"
 	test -s "$work_dir/wifi-scan-$board.elf"
 	test -s "$work_dir/wifi-scan-$board.uf2"
+	"$bmk" makeapp -a -r -l pico -g arm -board "$board" -heap 32k \
+		-o "$work_dir/wifi-connect-$board" "$module_root/examples/wifi_connect.bmx"
+	test -s "$work_dir/wifi-connect-$board.elf"
 done
 
 if "$bmk" makeapp -a -r -l pico -g arm -board pico2 -heap 32k \
@@ -35,6 +38,11 @@ wifi_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/wifi-scan-pico2_w.e
 rg -q ' T bmx_pico_wifi_initialize$' <<<"$wifi_symbols"
 rg -q ' T bmx_pico_wifi_start_scan$' <<<"$wifi_symbols"
 rg -q ' T cyw43_wifi_scan$' <<<"$wifi_symbols"
+rg -q ' T dhcp_start$' <<<"$wifi_symbols"
+
+connect_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/wifi-connect-pico2_w.elf")"
+rg -q ' T bmx_pico_wifi_connect$' <<<"$connect_symbols"
+rg -q ' T dhcp_start$' <<<"$connect_symbols"
 
 no_wifi_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/no-wifi.elf")"
 if rg -q ' (bmx_pico_wifi_|cyw43_wifi_scan$)' <<<"$no_wifi_symbols"; then
@@ -45,7 +53,7 @@ fi
 for board in pico_w pico2_w; do
 	read -r text_size _ bss_size _ < <("$toolchain/bin/arm-none-eabi-size" \
 		"$work_dir/wifi-scan-$board.elf" | awk 'NR == 2')
-	test "$text_size" -le 340000
-	test "$bss_size" -le 48000
+	test "$text_size" -le 370000
+	test "$bss_size" -le 70000
 	echo "Pico WiFi scan image ($board): text=$text_size bss=$bss_size"
 done

@@ -68,9 +68,9 @@ if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1)
             "Pico.Network.WiFi requires a Pico SDK board definition with CYW43 wireless support; "
             "PICO_BOARD='${PICO_BOARD}' does not provide it")
     endif()
-    if (NOT TARGET pico_cyw43_arch_none)
+    if (NOT TARGET pico_cyw43_arch_lwip_threadsafe_background)
         message(FATAL_ERROR
-            "Pico.Network.WiFi requires the Pico SDK pico_cyw43_arch_none library")
+            "Pico.Network.WiFi requires the Pico SDK thread-safe background lwIP library")
     endif()
     set(BLITZMAX_PICO_WIFI_MODULE_ENABLED TRUE)
     set(BLITZMAX_PICO_WIFI_SOURCE
@@ -250,7 +250,9 @@ if (BLITZMAX_PICO_POWER_MODULE_ENABLED)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_low_power)
 endif()
 if (BLITZMAX_PICO_WIFI_MODULE_ENABLED)
-    target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_cyw43_arch_none)
+    target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_cyw43_arch_lwip_threadsafe_background)
+    target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
+        "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native")
 endif()
 if ((BLITZMAX_PICO_PSRAM_MODULE_ENABLED OR BLITZMAX_PICO_ARENA_IN_PSRAM) AND
         NOT PICO_PLATFORM STREQUAL "rp2040")
