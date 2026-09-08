@@ -60,6 +60,23 @@ if (NOT BLITZMAX_PICO_PSRAM_MODULE_INDEX EQUAL -1)
         "${BLITZMAX_PICO_SDK}/mod/pico.mod/hardware.mod/psram.mod/native/pico_psram.c")
 endif()
 
+list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pico_network_wifi_wifi" BLITZMAX_PICO_WIFI_MODULE_INDEX)
+set(BLITZMAX_PICO_WIFI_MODULE_ENABLED FALSE)
+if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1)
+    if (NOT PICO_CYW43_SUPPORTED)
+        message(FATAL_ERROR
+            "Pico.Network.WiFi requires a Pico SDK board definition with CYW43 wireless support; "
+            "PICO_BOARD='${PICO_BOARD}' does not provide it")
+    endif()
+    if (NOT TARGET pico_cyw43_arch_lwip_threadsafe_background)
+        message(FATAL_ERROR
+            "Pico.Network.WiFi requires the Pico SDK thread-safe background lwIP library")
+    endif()
+    set(BLITZMAX_PICO_WIFI_MODULE_ENABLED TRUE)
+    set(BLITZMAX_PICO_WIFI_SOURCE
+        "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native/pico_wifi.c")
+endif()
+
 if (PICO_PLATFORM STREQUAL "rp2040")
     set(BLITZMAX_PICO_RESOLVED_FLOAT_ABI "soft")
     math(EXPR BLITZMAX_PICO_RAM_BYTES "256 * 1024")
@@ -219,6 +236,7 @@ add_executable(${BLITZMAX_OUTPUT_NAME}
     "${PICO_MODULE_ROOT}/runtime.mod/native/pico_unicode.c"
     ${BLITZMAX_PICO_POWER_SOURCE}
     ${BLITZMAX_PICO_PSRAM_SOURCE}
+    ${BLITZMAX_PICO_WIFI_SOURCE}
     "${BRL_BLITZ_ROOT}/ryu/ryu/f2s.c"
     "${BRL_BLITZ_ROOT}/ryu/ryu/d2s.c"
 )
@@ -230,6 +248,11 @@ endif()
 target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_stdlib pico_aon_timer pico_flash pico_rand pico_unique_id hardware_adc hardware_dma hardware_flash hardware_i2c hardware_pio hardware_pwm hardware_spi hardware_uart hardware_watchdog)
 if (BLITZMAX_PICO_POWER_MODULE_ENABLED)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_low_power)
+endif()
+if (BLITZMAX_PICO_WIFI_MODULE_ENABLED)
+    target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_cyw43_arch_lwip_threadsafe_background)
+    target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
+        "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native")
 endif()
 if ((BLITZMAX_PICO_PSRAM_MODULE_ENABLED OR BLITZMAX_PICO_ARENA_IN_PSRAM) AND
         NOT PICO_PLATFORM STREQUAL "rp2040")

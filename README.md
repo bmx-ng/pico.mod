@@ -8,6 +8,8 @@ build pipeline, and the Raspberry Pi Pico SDK.
 
 - Raspberry Pi Pico, selected with `-board pico`
 - Raspberry Pi Pico 2, selected with `-board pico2`
+- Raspberry Pi Pico W, selected with `-board pico_w`
+- Raspberry Pi Pico 2 W, selected with `-board pico2_w`
 - Other RP2040 and ARM RP2350 boards defined by the selected Pico SDK
 
 Pass the Pico SDK board-definition name to `-board`, for example
@@ -40,6 +42,7 @@ The namespace includes:
 - `Pico.System.Device`
 - `Pico.IO.BufferedUART`
 - `Pico.IO.StandardIO`
+- `Pico.Network.WiFi` for CYW43 radio control and asynchronous network scans
 
 The target also reuses compatible standard modules such as `BRL.Blitz`,
 `BRL.StandardIO`, `BRL.Stream`, `Pub.Time`, and selected collection modules.
@@ -167,6 +170,15 @@ managed-buffer retention, completion events, pacing timers, chaining, ring
 addressing, priority, byte swapping, and quiet IRQs. `Pico.IO.BufferedUART`
 provides interrupt-driven RX/TX rings through `TStream` and standard event
 queue integration.
+
+On wireless board definitions, `Pico.Network.WiFi` initializes the CYW43 radio,
+controls its GPIO 0 output (the onboard LED on official Pico W boards), and
+delivers asynchronous scan and link-state results through `BRL.EventQueue`.
+Station connections use lwIP DHCP and expose their IPv4 address, netmask and
+gateway. The current bare-metal integration uses lwIP's callback-driven core;
+BlitzMax sockets and higher-level network clients are not yet provided.
+Applications which do not import the module do not link lwIP, the wireless
+driver, or its firmware.
 
 `Pico.System.Power` provides interrupt and timed clock-gated sleep on both
 processors, GPIO-triggered dormant sleep on both processors, and timed dormant
