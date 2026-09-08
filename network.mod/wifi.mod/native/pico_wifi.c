@@ -38,6 +38,8 @@ static bool bmx_pico_wifi_is_initialized;
 static bool bmx_pico_wifi_scan_requested;
 static int32_t bmx_pico_wifi_last_link_status;
 
+extern uint32_t bmx_pico_net_active_socket_count(void) __attribute__((weak));
+
 static uint32_t bmx_pico_wifi_pack_address(const ip4_addr_t *address) {
     return (uint32_t)ip4_addr1(address) |
         ((uint32_t)ip4_addr2(address) << 8) |
@@ -99,6 +101,8 @@ int32_t bmx_pico_wifi_deinitialize(void) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     if (!bmx_pico_wifi_is_initialized) return PICO_OK;
     if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
+        return PICO_ERROR_RESOURCE_IN_USE;
+    if (bmx_pico_net_active_socket_count && bmx_pico_net_active_socket_count())
         return PICO_ERROR_RESOURCE_IN_USE;
     cyw43_arch_deinit();
     bmx_pico_wifi_is_initialized = false;

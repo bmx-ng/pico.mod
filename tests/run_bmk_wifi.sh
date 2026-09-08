@@ -23,7 +23,7 @@ if "$bmk" makeapp -a -r -l pico -g arm -board pico2 -heap 32k \
 	echo "Pico.Network.WiFi unexpectedly built for pico2" >&2
 	exit 1
 fi
-rg -q "requires a Pico SDK board definition with CYW43 wireless" \
+rg -q "CYW43 wireless support" \
 	"$work_dir/wifi-unsupported.log"
 
 "$bmk" makeapp -a -r -l pico -g arm -board pico2_w -heap 32k \

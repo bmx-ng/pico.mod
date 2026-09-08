@@ -1,8 +1,9 @@
 #ifndef BMX_PICO_LWIPOPTS_H
 #define BMX_PICO_LWIPOPTS_H
 
-/* Bare-metal, event-driven lwIP. The sequential and BSD socket APIs require
-   an operating-system layer and are intentionally not enabled here. */
+/* Bare-metal, event-driven lwIP. The native sequential and BSD socket APIs
+   require an operating-system layer and remain disabled. Pub.Net supplies its
+   compatible Pico API through a compact adapter over lwIP's raw callbacks. */
 #define NO_SYS 1
 #define SYS_LIGHTWEIGHT_PROT 0
 #define LWIP_RAW 1
