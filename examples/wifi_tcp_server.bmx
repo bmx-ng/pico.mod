@@ -20,21 +20,9 @@ If networkName = "<ssid>" Then
 End If
 
 If WiFiInitialize(WiFiCountryUK) <> 0 Then Throw "Unable to initialize WiFi"
-If WiFiConnect(networkName, networkPassword, WiFiAuthenticationWPA2MixedPSK) <> 0 Then
-	Throw "Unable to start WiFi connection"
-End If
-
-Local connected:Int
-Local started:UInt = MilliSecs()
-While Not connected And MilliSecs() - started < 30000
-	If PollEvent() = EVENT_WIFILINKSTATE Then
-		Local state:TWiFiLinkState = TWiFiLinkState(EventExtra())
-		If state And state.status = WiFiLinkUp Then connected = True
-		If state And state.status < 0 Then Exit
-	End If
-	Delay 10
-Wend
-If Not connected Then Throw "WiFi did not obtain an address"
+Local result:Int = WiFiConnectWait(networkName, networkPassword, ..
+	WiFiAuthenticationWPA2MixedPSK)
+If result <> 0 Then Throw "Unable to connect WiFi: " + result
 
 Local server:TSocket = TSocket.CreateTCP()
 If Not server Or Not server.Bind(serverPort) Or Not server.Listen(4) Then
@@ -52,6 +40,17 @@ While True
 			If EventSource() = server Then
 				Local client:TSocket = server.Accept(0)
 				While client
+					' Consume the request before closing so TCP can finish with a clean FIN.
+					Local request:Byte[1024]
+					Local requestDeadline:UInt = MilliSecs() + 1000
+					While client.ReadAvail() = 0 And MilliSecs() < requestDeadline
+						Delay 1
+					Wend
+					While client.ReadAvail() > 0
+						Local amount:Int = client.ReadAvail()
+						If amount > request.length Then amount = request.length
+						If client.Recv(request, amount) <= 0 Then Exit
+					Wend
 					Local stream:TSocketStream = TSocketStream.Create(client)
 					stream.WriteString("HTTP/1.0 200 OK~r~nContent-Type: text/plain~r~n" + ..
 						"Connection: close~r~n~r~nHello from BlitzMax on Pico!~n")

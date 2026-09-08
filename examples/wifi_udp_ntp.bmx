@@ -19,21 +19,9 @@ If networkName = "<ssid>" Then
 End If
 
 If WiFiInitialize(WiFiCountryUK) <> 0 Then Throw "Unable to initialize WiFi"
-If WiFiConnect(networkName, networkPassword, WiFiAuthenticationWPA2MixedPSK) <> 0 Then
-	Throw "Unable to start WiFi connection"
-End If
-
-Local connected:Int
-Local started:UInt = MilliSecs()
-While Not connected And MilliSecs() - started < 30000
-	If PollEvent() = EVENT_WIFILINKSTATE Then
-		Local state:TWiFiLinkState = TWiFiLinkState(EventExtra())
-		If state And state.status = WiFiLinkUp Then connected = True
-		If state And state.status < 0 Then Exit
-	End If
-	Delay 10
-Wend
-If Not connected Then Throw "WiFi did not obtain an address"
+Local result:Int = WiFiConnectWait(networkName, networkPassword, ..
+	WiFiAuthenticationWPA2MixedPSK)
+If result <> 0 Then Throw "Unable to connect WiFi: " + result
 
 Local addresses:TAddrInfo[] = AddrInfo("pool.ntp.org", "123", AF_INET_)
 If Not addresses.length Then Throw "Unable to resolve pool.ntp.org"

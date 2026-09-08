@@ -176,7 +176,10 @@ On wireless board definitions, `Pico.Network.WiFi` initializes the CYW43 radio,
 controls its GPIO 0 output (the onboard LED on official Pico W boards), and
 delivers asynchronous scan and link-state results through `BRL.EventQueue`.
 Station connections use lwIP DHCP and expose their IPv4 address, netmask and
-gateway. The current bare-metal integration uses lwIP's callback-driven core;
+gateway. `WiFiConnect` starts one asynchronous join, while `WiFiConnectWait`
+services the system until DHCP completes and retries transient join failures,
+which is useful when several mesh access points advertise the same SSID. The
+current bare-metal integration uses lwIP's callback-driven core;
 On Pico W and Pico 2 W, importing `Pub.Net` (directly or through
 `BRL.Socket`) selects a compact adapter over bare-metal lwIP. IPv4 DNS,
 TCP clients and servers, UDP, readiness polling and `BRL.SocketStream` are
