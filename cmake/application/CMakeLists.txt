@@ -61,17 +61,23 @@ if (NOT BLITZMAX_PICO_PSRAM_MODULE_INDEX EQUAL -1)
 endif()
 
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pico_network_wifi_wifi" BLITZMAX_PICO_WIFI_MODULE_INDEX)
+list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pub_net_net" BLITZMAX_PICO_NET_MODULE_INDEX)
 set(BLITZMAX_PICO_WIFI_MODULE_ENABLED FALSE)
-if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1)
+set(BLITZMAX_PICO_NETWORK_STACK_ENABLED FALSE)
+if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
+        NOT BLITZMAX_PICO_NET_MODULE_INDEX EQUAL -1)
     if (NOT PICO_CYW43_SUPPORTED)
         message(FATAL_ERROR
-            "Pico.Network.WiFi requires a Pico SDK board definition with CYW43 wireless support; "
+            "Pico Wi-Fi and socket networking require a Pico SDK board definition with CYW43 wireless support; "
             "PICO_BOARD='${PICO_BOARD}' does not provide it")
     endif()
     if (NOT TARGET pico_cyw43_arch_lwip_threadsafe_background)
         message(FATAL_ERROR
-            "Pico.Network.WiFi requires the Pico SDK thread-safe background lwIP library")
+            "Pico networking requires the Pico SDK thread-safe background lwIP library")
     endif()
+    set(BLITZMAX_PICO_NETWORK_STACK_ENABLED TRUE)
+endif()
+if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1)
     set(BLITZMAX_PICO_WIFI_MODULE_ENABLED TRUE)
     set(BLITZMAX_PICO_WIFI_SOURCE
         "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native/pico_wifi.c")
@@ -249,7 +255,7 @@ target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_stdlib pico_aon_timer pico_fl
 if (BLITZMAX_PICO_POWER_MODULE_ENABLED)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_low_power)
 endif()
-if (BLITZMAX_PICO_WIFI_MODULE_ENABLED)
+if (BLITZMAX_PICO_NETWORK_STACK_ENABLED)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_cyw43_arch_lwip_threadsafe_background)
     target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
         "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native")
