@@ -21,21 +21,8 @@ End If
 Local result:Int = WiFiInitialize(WiFiCountryUK)
 If result <> 0 Then Throw "Unable to initialize WiFi: " + result
 
-result = WiFiConnect(networkName, networkPassword, WiFiAuthenticationWPA2MixedPSK)
-If result <> 0 Then Throw "Unable to start WiFi connection: " + result
-
-Local connected:Int
-Local started:UInt = MilliSecs()
-While Not connected And MilliSecs() - started < 30000
-	If PollEvent() = EVENT_WIFILINKSTATE Then
-		Local state:TWiFiLinkState = TWiFiLinkState(EventExtra())
-		If state And state.status = WiFiLinkUp Then connected = True
-		If state And state.status < 0 Then Exit
-	End If
-	Delay 10
-Wend
-
-If Not connected Then Throw "WiFi did not obtain an address"
+result = WiFiConnectWait(networkName, networkPassword, WiFiAuthenticationWPA2MixedPSK)
+If result <> 0 Then Throw "Unable to connect WiFi: " + result
 
 Print "Connected as " + WiFiIPv4Address()
 Print "Resolving and connecting to example.com..."

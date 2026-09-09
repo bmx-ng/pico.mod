@@ -13,7 +13,7 @@ End Rem
 Module Pico.Network.WiFi
 ?pico
 
-ModuleInfo "Version: 0.2"
+ModuleInfo "Version: 0.3"
 ModuleInfo "License: zlib/libpng"
 
 Import BRL.Event
@@ -268,6 +268,41 @@ Function WiFiConnect:Int(ssid:String, password:String = "", ..
 	MemFree(ssidBytes)
 	If passwordBytes Then MemFree(passwordBytes)
 	Return result
+End Function
+
+Rem
+bbdoc: Connects to a wireless network, waiting for DHCP and retrying failed joins.
+returns: Zero after an address is assigned, a negative #WiFiLink status after
+all attempts fail, or a Pico SDK error when a join cannot be started.
+about: This blocking convenience function continues to service the system, so
+normal WiFi link-state events are still emitted. Retries are useful on mesh
+networks where an initial join can be rejected by one access point before a
+subsequent join selects a compatible node. Use #WiFiConnect when the application
+wants to manage one asynchronous attempt itself.
+End Rem
+Function WiFiConnectWait:Int(ssid:String, password:String = "", ..
+	authentication:UInt = WiFiAuthenticationWPA2MixedPSK, attempts:Int = 3, ..
+	timeout:UInt = 15000, retryDelay:UInt = 1000)
+	If attempts < 1 Then Return -5
+	Local lastStatus:Int = WiFiLinkDown
+	For Local attempt:Int = 1 To attempts
+		Local result:Int = WiFiConnect(ssid, password, authentication)
+		If result <> 0 Then Return result
+		Local started:UInt = MilliSecs()
+		While MilliSecs() - started < timeout
+			PollSystem()
+			lastStatus = WiFiLinkStatus()
+			If lastStatus = WiFiLinkUp Then Return 0
+			If lastStatus < 0 Then Exit
+			Delay 10
+		Wend
+		If attempt < attempts Then
+			WiFiDisconnect()
+			Delay retryDelay
+		End If
+	Next
+	If lastStatus < 0 Then Return lastStatus
+	Return WiFiLinkFailed
 End Function
 
 Rem

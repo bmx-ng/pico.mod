@@ -43,7 +43,7 @@ The namespace includes:
 - `Pico.IO.BufferedUART`
 - `Pico.IO.StandardIO`
 - `Pico.Network.WiFi` for CYW43 radio control, asynchronous scans and station connections
-- `Pub.Net`, `BRL.Socket` and `BRL.SocketStream` for IPv4 DNS, outbound TCP and UDP on wireless boards
+- `Pub.Net`, `BRL.Socket` and `BRL.SocketStream` for IPv4 DNS, TCP clients and servers, and UDP on wireless boards
 
 The target also reuses compatible standard modules such as `BRL.Blitz`,
 `BRL.StandardIO`, `BRL.Stream`, `Pub.Time`, and selected collection modules.
@@ -176,12 +176,19 @@ On wireless board definitions, `Pico.Network.WiFi` initializes the CYW43 radio,
 controls its GPIO 0 output (the onboard LED on official Pico W boards), and
 delivers asynchronous scan and link-state results through `BRL.EventQueue`.
 Station connections use lwIP DHCP and expose their IPv4 address, netmask and
-gateway. The current bare-metal integration uses lwIP's callback-driven core;
+gateway. `WiFiConnect` starts one asynchronous join, while `WiFiConnectWait`
+services the system until DHCP completes and retries transient join failures,
+which is useful when several mesh access points advertise the same SSID. The
+current bare-metal integration uses lwIP's callback-driven core;
 On Pico W and Pico 2 W, importing `Pub.Net` (directly or through
 `BRL.Socket`) selects a compact adapter over bare-metal lwIP. IPv4 DNS,
-outbound TCP, UDP, readiness polling and `BRL.SocketStream` are available.
-Listening TCP sockets, IPv6 and higher-level HTTP/TLS clients are not yet
-provided. Close all sockets before calling `WiFiDeinitialize`.
+TCP clients and servers, UDP, readiness polling and `BRL.SocketStream` are
+available. Pico sockets can also publish edge-triggered readable, writable,
+accept, close and error events through `BRL.EventQueue`. The initial adapter
+supports eight simultaneous sockets, four queued TCP accepts per listener,
+a 4 KiB receive ring per active TCP connection and four queued UDP datagrams
+per UDP socket. IPv6 and higher-level HTTP/TLS clients are not yet provided.
+Close all sockets before calling `WiFiDeinitialize`.
 Applications which do not import the module do not link lwIP, the wireless
 driver, or its firmware.
 
