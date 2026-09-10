@@ -21,17 +21,17 @@
 
 extern uint64_t bmx_current_unix_time(void);
 
-typedef struct BMXPicoLittleFSFile {
+typedef struct BMXEmbeddedLittleFSFile {
     lfs_file_t file;
     struct lfs_file_config config;
     uint8_t cache[BMX_LFS_CACHE_SIZE];
     char *path;
     int32_t write_mode;
-} BMXPicoLittleFSFile;
+} BMXEmbeddedLittleFSFile;
 
-typedef struct BMXPicoLittleFSDirectory {
+typedef struct BMXEmbeddedLittleFSDirectory {
     lfs_dir_t directory;
-} BMXPicoLittleFSDirectory;
+} BMXEmbeddedLittleFSDirectory;
 
 static lfs_t bmx_lfs;
 static struct lfs_config bmx_lfs_config;
@@ -41,11 +41,11 @@ static uint8_t bmx_lfs_lookahead_buffer[BMX_LFS_LOOKAHEAD_SIZE];
 static int32_t bmx_lfs_mounted;
 static int32_t bmx_lfs_last_error;
 
-typedef struct BMXPicoLittleFSTimes {
+typedef struct BMXEmbeddedLittleFSTimes {
     int64_t created;
     int64_t modified;
     int64_t accessed;
-} BMXPicoLittleFSTimes;
+} BMXEmbeddedLittleFSTimes;
 
 static int64_t bmx_lfs_decode_i64(const uint8_t *source) {
     uint64_t value = 0;
@@ -62,7 +62,7 @@ static void bmx_lfs_encode_i64(uint8_t *destination, int64_t signed_value) {
     }
 }
 
-static int bmx_lfs_read_times(const char *path, BMXPicoLittleFSTimes *times) {
+static int bmx_lfs_read_times(const char *path, BMXEmbeddedLittleFSTimes *times) {
     uint8_t data[BMX_LFS_TIME_ATTRIBUTE_SIZE];
     memset(times, 0, sizeof(*times));
     lfs_ssize_t size = lfs_getattr(&bmx_lfs, path, BMX_LFS_TIME_ATTRIBUTE,
@@ -77,7 +77,7 @@ static int bmx_lfs_read_times(const char *path, BMXPicoLittleFSTimes *times) {
     return LFS_ERR_OK;
 }
 
-static int bmx_lfs_write_times(const char *path, const BMXPicoLittleFSTimes *times) {
+static int bmx_lfs_write_times(const char *path, const BMXEmbeddedLittleFSTimes *times) {
     uint8_t data[BMX_LFS_TIME_ATTRIBUTE_SIZE] = {'B', 'M', 'X', 'T', 1u};
     bmx_lfs_encode_i64(data + 8, times->created);
     bmx_lfs_encode_i64(data + 16, times->modified);
@@ -90,7 +90,7 @@ static int64_t bmx_lfs_now(void) {
 }
 
 static int bmx_lfs_touch_created(const char *path) {
-    BMXPicoLittleFSTimes times;
+    BMXEmbeddedLittleFSTimes times;
     int result = bmx_lfs_read_times(path, &times);
     if (result) return result;
     int64_t now = bmx_lfs_now();
@@ -100,7 +100,7 @@ static int bmx_lfs_touch_created(const char *path) {
 }
 
 static int bmx_lfs_touch_modified(const char *path) {
-    BMXPicoLittleFSTimes times;
+    BMXEmbeddedLittleFSTimes times;
     int result = bmx_lfs_read_times(path, &times);
     if (result) return result;
     times.modified = bmx_lfs_now();
@@ -228,11 +228,11 @@ int64_t bmx_pico_littlefs_used(void) {
     return (int64_t)blocks * bmx_lfs_config.block_size;
 }
 
-static char *bmx_lfs_path(const BMXPicoString *path) {
-    return (char *)bmx_pico_string_to_utf8_string(path);
+static char *bmx_lfs_path(const BMXEmbeddedString *path) {
+    return (char *)bmx_embedded_string_to_utf8_string(path);
 }
 
-void *bmx_pico_littlefs_open(const BMXPicoString *path, int32_t readable,
+void *bmx_pico_littlefs_open(const BMXEmbeddedString *path, int32_t readable,
         int32_t write_mode) {
     if (!bmx_lfs_mounted) {
         bmx_lfs_set_result(LFS_ERR_BADF);
@@ -252,7 +252,7 @@ void *bmx_pico_littlefs_open(const BMXPicoString *path, int32_t readable,
         flags = LFS_O_RDONLY;
     }
 
-    BMXPicoLittleFSFile *handle = (BMXPicoLittleFSFile *)bbMemAlloc(sizeof(*handle));
+    BMXEmbeddedLittleFSFile *handle = (BMXEmbeddedLittleFSFile *)bbMemAlloc(sizeof(*handle));
     if (!handle) {
         bmx_lfs_set_result(LFS_ERR_NOMEM);
         return NULL;
@@ -294,7 +294,7 @@ void *bmx_pico_littlefs_open(const BMXPicoString *path, int32_t readable,
 
 int32_t bmx_pico_littlefs_close(void *opaque) {
     if (!opaque) return bmx_lfs_set_result(LFS_ERR_OK);
-    BMXPicoLittleFSFile *handle = (BMXPicoLittleFSFile *)opaque;
+    BMXEmbeddedLittleFSFile *handle = (BMXEmbeddedLittleFSFile *)opaque;
     int result = lfs_file_close(&bmx_lfs, &handle->file);
     if (!result && handle->write_mode) result = bmx_lfs_touch_modified(handle->path);
     bbMemFree(handle->path);
@@ -307,7 +307,7 @@ int64_t bmx_pico_littlefs_read(void *opaque, void *buffer, int64_t count) {
         return bmx_lfs_set_result(LFS_ERR_INVAL);
     }
     lfs_ssize_t result = lfs_file_read(&bmx_lfs,
-        &((BMXPicoLittleFSFile *)opaque)->file, buffer, (lfs_size_t)count);
+        &((BMXEmbeddedLittleFSFile *)opaque)->file, buffer, (lfs_size_t)count);
     bmx_lfs_set_result(result < 0 ? result : LFS_ERR_OK);
     return result;
 }
@@ -317,7 +317,7 @@ int64_t bmx_pico_littlefs_write(void *opaque, void *buffer, int64_t count) {
         return bmx_lfs_set_result(LFS_ERR_INVAL);
     }
     lfs_ssize_t result = lfs_file_write(&bmx_lfs,
-        &((BMXPicoLittleFSFile *)opaque)->file, buffer, (lfs_size_t)count);
+        &((BMXEmbeddedLittleFSFile *)opaque)->file, buffer, (lfs_size_t)count);
     bmx_lfs_set_result(result < 0 ? result : LFS_ERR_OK);
     return result;
 }
@@ -325,7 +325,7 @@ int64_t bmx_pico_littlefs_write(void *opaque, void *buffer, int64_t count) {
 int64_t bmx_pico_littlefs_position(void *opaque) {
     if (!opaque) return bmx_lfs_set_result(LFS_ERR_BADF);
     lfs_soff_t result = lfs_file_tell(&bmx_lfs,
-        &((BMXPicoLittleFSFile *)opaque)->file);
+        &((BMXEmbeddedLittleFSFile *)opaque)->file);
     bmx_lfs_set_result(result < 0 ? result : LFS_ERR_OK);
     return result;
 }
@@ -333,7 +333,7 @@ int64_t bmx_pico_littlefs_position(void *opaque) {
 int64_t bmx_pico_littlefs_size(void *opaque) {
     if (!opaque) return bmx_lfs_set_result(LFS_ERR_BADF);
     lfs_soff_t result = lfs_file_size(&bmx_lfs,
-        &((BMXPicoLittleFSFile *)opaque)->file);
+        &((BMXEmbeddedLittleFSFile *)opaque)->file);
     bmx_lfs_set_result(result < 0 ? result : LFS_ERR_OK);
     return result;
 }
@@ -343,7 +343,7 @@ int64_t bmx_pico_littlefs_seek(void *opaque, int64_t offset, int32_t whence) {
         return bmx_lfs_set_result(LFS_ERR_INVAL);
     }
     lfs_soff_t result = lfs_file_seek(&bmx_lfs,
-        &((BMXPicoLittleFSFile *)opaque)->file, (lfs_soff_t)offset, whence);
+        &((BMXEmbeddedLittleFSFile *)opaque)->file, (lfs_soff_t)offset, whence);
     bmx_lfs_set_result(result < 0 ? result : LFS_ERR_OK);
     return result;
 }
@@ -353,16 +353,16 @@ int32_t bmx_pico_littlefs_resize(void *opaque, int64_t size) {
         return bmx_lfs_set_result(LFS_ERR_INVAL);
     }
     return bmx_lfs_set_result(lfs_file_truncate(&bmx_lfs,
-        &((BMXPicoLittleFSFile *)opaque)->file, (lfs_off_t)size));
+        &((BMXEmbeddedLittleFSFile *)opaque)->file, (lfs_off_t)size));
 }
 
 int32_t bmx_pico_littlefs_flush(void *opaque) {
     if (!opaque) return bmx_lfs_set_result(LFS_ERR_BADF);
     return bmx_lfs_set_result(lfs_file_sync(&bmx_lfs,
-        &((BMXPicoLittleFSFile *)opaque)->file));
+        &((BMXEmbeddedLittleFSFile *)opaque)->file));
 }
 
-int32_t bmx_pico_littlefs_stat(const BMXPicoString *path, int32_t *type,
+int32_t bmx_pico_littlefs_stat(const BMXEmbeddedString *path, int32_t *type,
         int64_t *size, int64_t *modified, int64_t *created, int64_t *accessed) {
     if (!bmx_lfs_mounted) return bmx_lfs_set_result(LFS_ERR_BADF);
     char *native_path = bmx_lfs_path(path);
@@ -372,7 +372,7 @@ int32_t bmx_pico_littlefs_stat(const BMXPicoString *path, int32_t *type,
     if (!result) {
         if (type) *type = info.type == LFS_TYPE_DIR ? 2 : 1;
         if (size) *size = info.size;
-        BMXPicoLittleFSTimes times;
+        BMXEmbeddedLittleFSTimes times;
         result = bmx_lfs_read_times(native_path, &times);
         if (!result) {
             if (modified) *modified = times.modified;
@@ -384,14 +384,14 @@ int32_t bmx_pico_littlefs_stat(const BMXPicoString *path, int32_t *type,
     return bmx_lfs_set_result(result);
 }
 
-int32_t bmx_pico_littlefs_set_time(const BMXPicoString *path, int64_t time,
+int32_t bmx_pico_littlefs_set_time(const BMXEmbeddedString *path, int64_t time,
         int32_t time_type) {
     if (!bmx_lfs_mounted || time_type < 0 || time_type > 2) {
         return bmx_lfs_set_result(LFS_ERR_INVAL);
     }
     char *native_path = bmx_lfs_path(path);
     if (!native_path) return bmx_lfs_set_result(LFS_ERR_NOMEM);
-    BMXPicoLittleFSTimes times;
+    BMXEmbeddedLittleFSTimes times;
     int result = bmx_lfs_read_times(native_path, &times);
     if (!result) {
         if (time_type == 0) times.modified = time;
@@ -403,7 +403,7 @@ int32_t bmx_pico_littlefs_set_time(const BMXPicoString *path, int64_t time,
     return bmx_lfs_set_result(result);
 }
 
-static int bmx_lfs_path_operation(const BMXPicoString *path,
+static int bmx_lfs_path_operation(const BMXEmbeddedString *path,
         int (*operation)(lfs_t *, const char *)) {
     if (!bmx_lfs_mounted) return bmx_lfs_set_result(LFS_ERR_BADF);
     char *native_path = bmx_lfs_path(path);
@@ -413,7 +413,7 @@ static int bmx_lfs_path_operation(const BMXPicoString *path,
     return bmx_lfs_set_result(result);
 }
 
-int32_t bmx_pico_littlefs_mkdir(const BMXPicoString *path) {
+int32_t bmx_pico_littlefs_mkdir(const BMXEmbeddedString *path) {
     if (!bmx_lfs_mounted) return bmx_lfs_set_result(LFS_ERR_BADF);
     char *native_path = bmx_lfs_path(path);
     if (!native_path) return bmx_lfs_set_result(LFS_ERR_NOMEM);
@@ -423,12 +423,12 @@ int32_t bmx_pico_littlefs_mkdir(const BMXPicoString *path) {
     return bmx_lfs_set_result(result);
 }
 
-int32_t bmx_pico_littlefs_remove(const BMXPicoString *path) {
+int32_t bmx_pico_littlefs_remove(const BMXEmbeddedString *path) {
     return bmx_lfs_path_operation(path, lfs_remove);
 }
 
-int32_t bmx_pico_littlefs_rename(const BMXPicoString *old_path,
-        const BMXPicoString *new_path) {
+int32_t bmx_pico_littlefs_rename(const BMXEmbeddedString *old_path,
+        const BMXEmbeddedString *new_path) {
     if (!bmx_lfs_mounted) return bmx_lfs_set_result(LFS_ERR_BADF);
     char *native_old_path = bmx_lfs_path(old_path);
     char *native_new_path = bmx_lfs_path(new_path);
@@ -443,13 +443,13 @@ int32_t bmx_pico_littlefs_rename(const BMXPicoString *old_path,
     return bmx_lfs_set_result(result);
 }
 
-void *bmx_pico_littlefs_directory_open(const BMXPicoString *path) {
+void *bmx_pico_littlefs_directory_open(const BMXEmbeddedString *path) {
     if (!bmx_lfs_mounted) {
         bmx_lfs_set_result(LFS_ERR_BADF);
         return NULL;
     }
-    BMXPicoLittleFSDirectory *handle =
-        (BMXPicoLittleFSDirectory *)bbMemAlloc(sizeof(*handle));
+    BMXEmbeddedLittleFSDirectory *handle =
+        (BMXEmbeddedLittleFSDirectory *)bbMemAlloc(sizeof(*handle));
     if (!handle) {
         bmx_lfs_set_result(LFS_ERR_NOMEM);
         return NULL;
@@ -472,25 +472,25 @@ void *bmx_pico_littlefs_directory_open(const BMXPicoString *path) {
     return handle;
 }
 
-const BMXPicoString *bmx_pico_littlefs_directory_next(void *opaque) {
+const BMXEmbeddedString *bmx_pico_littlefs_directory_next(void *opaque) {
     if (!opaque) {
         bmx_lfs_set_result(LFS_ERR_BADF);
-        return &bmx_pico_empty_string;
+        return &bmx_embedded_empty_string;
     }
     struct lfs_info info;
     int result = lfs_dir_read(&bmx_lfs,
-        &((BMXPicoLittleFSDirectory *)opaque)->directory, &info);
+        &((BMXEmbeddedLittleFSDirectory *)opaque)->directory, &info);
     if (result <= 0) {
         bmx_lfs_set_result(result < 0 ? result : LFS_ERR_OK);
-        return &bmx_pico_empty_string;
+        return &bmx_embedded_empty_string;
     }
     bmx_lfs_set_result(LFS_ERR_OK);
-    return bmx_pico_string_from_utf8_string((const uint8_t *)info.name);
+    return bmx_embedded_string_from_utf8_string((const uint8_t *)info.name);
 }
 
 int32_t bmx_pico_littlefs_directory_close(void *opaque) {
     if (!opaque) return bmx_lfs_set_result(LFS_ERR_OK);
-    BMXPicoLittleFSDirectory *handle = (BMXPicoLittleFSDirectory *)opaque;
+    BMXEmbeddedLittleFSDirectory *handle = (BMXEmbeddedLittleFSDirectory *)opaque;
     int result = lfs_dir_close(&bmx_lfs, &handle->directory);
     bbMemFree(handle);
     return bmx_lfs_set_result(result);

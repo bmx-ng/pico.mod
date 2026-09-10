@@ -26,15 +26,15 @@ test "$text_size" -le 56000
 test "$bss_size" -le 24000
 
 for symbol in \
-	bmx_pico_string_from_c_string \
-	bmx_pico_string_from_w_string \
-	bmx_pico_string_from_utf8_string \
-	bmx_pico_string_to_w_string_buffer \
-	bmx_pico_string_to_utf8_string_buffer \
-	bmx_pico_string_to_utf32_string \
-	bmx_pico_string_from_utf32_string \
-	bmx_pico_string_from_bytes_as_hex \
-	bmx_pico_string_to_bytes_from_hex_ex; do
+	bmx_embedded_string_from_c_string \
+	bmx_embedded_string_from_w_string \
+	bmx_embedded_string_from_utf8_string \
+	bmx_embedded_string_to_w_string_buffer \
+	bmx_embedded_string_to_utf8_string_buffer \
+	bmx_embedded_string_to_utf32_string \
+	bmx_embedded_string_from_utf32_string \
+	bmx_embedded_string_from_bytes_as_hex \
+	bmx_embedded_string_to_bytes_from_hex_ex; do
 	"$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_encoding_memory.elf" | rg -q " $symbol$"
 done
 

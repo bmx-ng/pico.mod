@@ -24,7 +24,7 @@ test "$text_size" -le 56000
 test "$bss_size" -le 24000
 
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/timer_alarm.elf")"
-rg -q ' T bmx_pico_millisecs$' <<<"$symbols"
+rg -q ' T bmx_embedded_millisecs$' <<<"$symbols"
 rg -q ' T bmx_pico_alarm_after_ms$' <<<"$symbols"
 rg -q ' T bmx_pico_alarm_after_us$' <<<"$symbols"
 rg -q ' T bmx_pico_repeating_alarm_ms$' <<<"$symbols"

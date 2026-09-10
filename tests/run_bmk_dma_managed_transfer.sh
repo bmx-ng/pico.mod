@@ -28,6 +28,6 @@ symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/dma_managed_transfer.elf
 rg -q ' T bmx_pico_dma_configure$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_abort$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_unclaim_channel$' <<<"$symbols"
-rg -q ' T bmx_pico_collect_objects$' <<<"$symbols"
+rg -q ' T bmx_embedded_collect_objects$' <<<"$symbols"
 
 echo "Pico managed DMA image: board=$board text=$text_size bss=$bss_size"

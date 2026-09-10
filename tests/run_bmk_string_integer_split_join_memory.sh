@@ -27,8 +27,8 @@ test "$bss_size" -le 24000
 
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_integer_split_join_memory.elf")"
 for suffix in ints bytes shorts uints longs ulongs sizes long_ints ulong_ints; do
-	rg -q " bmx_pico_string_split_${suffix}$" <<<"$symbols"
-	rg -q " bmx_pico_string_join_${suffix}$" <<<"$symbols"
+	rg -q " bmx_embedded_string_split_${suffix}$" <<<"$symbols"
+	rg -q " bmx_embedded_string_join_${suffix}$" <<<"$symbols"
 done
 if rg -q 'fast_float|f2s_buffered|d2s_buffered|__real_snprintf' <<<"$symbols"; then
 	echo "Floating-point conversion code leaked into the integer Split/Join image" >&2

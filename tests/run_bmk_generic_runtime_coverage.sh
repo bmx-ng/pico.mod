@@ -25,8 +25,8 @@ test "$(grep -c '^file generic-specialization-c ' "$manifest")" -ge 1
 
 generic_unit="$(find "$build_dir/bcc/application/.generics/units" -name '*.c' -type f | head -1)"
 test -n "$generic_unit"
-grep -q 'bmx_pico_array_concat' "$generic_unit"
-grep -q 'bmx_pico_exception_enter' "$generic_unit"
-grep -q 'BMXPicoRootFrame' "$generic_unit"
+grep -q 'bmx_embedded_array_concat' "$generic_unit"
+grep -q 'bmx_embedded_exception_enter' "$generic_unit"
+grep -q 'BMXEmbeddedRootFrame' "$generic_unit"
 
 echo "Pico generic runtime coverage build passed for Pico and Pico 2"

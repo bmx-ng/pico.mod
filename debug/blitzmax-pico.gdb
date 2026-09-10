@@ -6,10 +6,10 @@ set breakpoint pending on
 # here: debugger adapters such as Cortex-Debug cannot reliably drive GDB's
 # interactive multi-line `commands` facility. The calling BlitzMax frame is
 # immediately below this marker in the call stack.
-break bmx_pico_debug_stop
+break bmx_embedded_debug_stop
 
 define bmx-string
-  set $bmx_string = (BMXPicoString *)$arg0
+  set $bmx_string = (BMXEmbeddedString *)$arg0
   if $bmx_string == 0
     printf "Null\n"
   else
@@ -34,11 +34,11 @@ Usage: bmx-string stringExpression
 end
 
 define bmx-array
-  set $bmx_array = (BMXPicoArray *)$arg0
+  set $bmx_array = (BMXEmbeddedArray *)$arg0
   if $bmx_array == 0
     printf "Null\n"
   else
-    printf "Array(length=%d, elementSize=%u, kind=%u, data=%p)\n", $bmx_array->length, $bmx_array->element_size, $bmx_array->element_kind, ((unsigned char *)$bmx_array + ((sizeof(BMXPicoArray) + 15) & ~15))
+    printf "Array(length=%d, elementSize=%u, kind=%u, data=%p)\n", $bmx_array->length, $bmx_array->element_size, $bmx_array->element_kind, ((unsigned char *)$bmx_array + ((sizeof(BMXEmbeddedArray) + 15) & ~15))
   end
 end
 document bmx-array
@@ -48,7 +48,7 @@ Usage: bmx-array arrayExpression
 end
 
 define bmx-object
-  set $bmx_object = (BMXPicoObject *)$arg0
+  set $bmx_object = (BMXEmbeddedObject *)$arg0
   if $bmx_object == 0
     printf "Null\n"
   else

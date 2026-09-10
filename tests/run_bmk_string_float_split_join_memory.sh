@@ -24,9 +24,9 @@ test "$text_size" -le 90000
 test "$bss_size" -le 24000
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_float_split_join_memory.elf")"
 for symbol in split_floats split_doubles join_floats_default join_doubles_default; do
-	rg -q " bmx_pico_string_${symbol}$" <<<"$symbols"
+	rg -q " bmx_embedded_string_${symbol}$" <<<"$symbols"
 done
-if rg -q ' T snprintf$|bmx_pico_string_join_(floats|doubles)_fixed' <<<"$symbols"; then
+if rg -q ' T snprintf$|bmx_embedded_string_join_(floats|doubles)_fixed' <<<"$symbols"; then
 	echo "Fixed formatting leaked into the default floating Split/Join image" >&2
 	exit 1
 fi
@@ -35,8 +35,8 @@ read -r fixed_text_size _ fixed_bss_size _ < <("$toolchain/bin/arm-none-eabi-siz
 test "$fixed_text_size" -le 65000
 test "$fixed_bss_size" -le 24000
 fixed_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_float_join_fixed.elf")"
-rg -q ' bmx_pico_string_join_floats_fixed$' <<<"$fixed_symbols"
-rg -q ' bmx_pico_string_join_doubles_fixed$' <<<"$fixed_symbols"
+rg -q ' bmx_embedded_string_join_floats_fixed$' <<<"$fixed_symbols"
+rg -q ' bmx_embedded_string_join_doubles_fixed$' <<<"$fixed_symbols"
 rg -q ' T snprintf$' <<<"$fixed_symbols"
 
 echo "Pico floating String Split/Join image: text=$text_size bss=$bss_size"
