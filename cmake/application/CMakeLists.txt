@@ -210,6 +210,7 @@ set(BLITZMAX_PICO_RESOLVED_ARENA_SIZE ${BLITZMAX_PICO_RESOLVED_ARENA_SIZE}
     CACHE INTERNAL "Resolved BlitzMax Pico managed heap size" FORCE)
 
 set(PICO_MODULE_ROOT "${BLITZMAX_PICO_SDK}/mod/pico.mod")
+set(EMBEDDED_MODULE_ROOT "${BLITZMAX_PICO_SDK}/mod/embedded.mod")
 set(BRL_BLITZ_ROOT "${BLITZMAX_PICO_SDK}/mod/brl.mod/blitz.mod")
 set(GENERATED_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(GENERATED_BOOTSTRAP_C "${GENERATED_DIRECTORY}/blitzmax_pico_modules.c")
@@ -219,7 +220,7 @@ file(WRITE "${GENERATED_BOOTSTRAP_C}" "/* Generated Pico module initialization o
 foreach(module_initializer IN LISTS BLITZMAX_PICO_MODULE_INITIALIZERS)
     file(APPEND "${GENERATED_BOOTSTRAP_C}" "extern int ${module_initializer}(void);\n")
 endforeach()
-file(APPEND "${GENERATED_BOOTSTRAP_C}" "void bmx_pico_modules_init(void) {\n")
+file(APPEND "${GENERATED_BOOTSTRAP_C}" "void bmx_embedded_modules_init(void) {\n")
 foreach(module_initializer IN LISTS BLITZMAX_PICO_MODULE_INITIALIZERS)
     file(APPEND "${GENERATED_BOOTSTRAP_C}" "    (void)${module_initializer}();\n")
 endforeach()
@@ -236,10 +237,11 @@ add_executable(${BLITZMAX_OUTPUT_NAME}
     ${BLITZMAX_PICO_GENERATED_SOURCES}
     ${BLITZMAX_PICO_NATIVE_SOURCES}
     "${GENERATED_BOOTSTRAP_C}"
+    "${EMBEDDED_MODULE_ROOT}/runtime.mod/native/embedded_runtime.c"
     "${PICO_MODULE_ROOT}/runtime.mod/native/pico_runtime.c"
-    "${PICO_MODULE_ROOT}/runtime.mod/native/pico_string_integer.c"
-    "${PICO_MODULE_ROOT}/runtime.mod/native/pico_string_float.cpp"
-    "${PICO_MODULE_ROOT}/runtime.mod/native/pico_unicode.c"
+    "${EMBEDDED_MODULE_ROOT}/runtime.mod/native/embedded_string_integer.c"
+    "${EMBEDDED_MODULE_ROOT}/runtime.mod/native/embedded_string_float.cpp"
+    "${EMBEDDED_MODULE_ROOT}/runtime.mod/native/embedded_unicode.c"
     ${BLITZMAX_PICO_POWER_SOURCE}
     ${BLITZMAX_PICO_PSRAM_SOURCE}
     ${BLITZMAX_PICO_WIFI_SOURCE}
@@ -273,14 +275,15 @@ endif()
 target_compile_definitions(${BLITZMAX_OUTPUT_NAME} PRIVATE
     RYU_OPTIMIZE_SIZE=1
     BMX_PICO_HARD_FLOAT_ABI=$<BOOL:${PICO_HARD_FLOAT_ABI}>
-    BMX_PICO_ARENA_SIZE=${BLITZMAX_PICO_RESOLVED_ARENA_SIZE}u
-    BMX_PICO_ARENA_IN_PSRAM=${BLITZMAX_PICO_ARENA_IN_PSRAM}
+    BMX_EMBEDDED_ARENA_SIZE=${BLITZMAX_PICO_RESOLVED_ARENA_SIZE}u
+    BMX_EMBEDDED_ARENA_IN_PSRAM=${BLITZMAX_PICO_ARENA_IN_PSRAM}
     BMX_PICO_FLASH_BYTES=${BLITZMAX_PICO_FLASH_BYTES}u
     BMX_PICO_STORAGE_OFFSET=${BLITZMAX_PICO_STORAGE_OFFSET}u
     BMX_PICO_STORAGE_SIZE=${BLITZMAX_PICO_STORAGE_BYTES}u
     BMX_PICO_TAIL_RESERVED_SIZE=${BLITZMAX_PICO_TAIL_RESERVED_BYTES}u
 )
 target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
+    "${EMBEDDED_MODULE_ROOT}/runtime.mod/native/include"
     "${PICO_MODULE_ROOT}/runtime.mod/native/include"
     "${BLITZMAX_PICO_SDK}/mod"
     "${BLITZMAX_APPLICATION_ROOT}"

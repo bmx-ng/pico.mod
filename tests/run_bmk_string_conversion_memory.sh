@@ -38,7 +38,7 @@ fi
 read -r integer_text_size _ integer_bss_size _ < <("$toolchain/bin/arm-none-eabi-size" "$work_dir/string_integer_conversion.elf" | awk 'NR == 2')
 test "$integer_text_size" -le 60000
 test "$integer_bss_size" -le 24000
-if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_integer_conversion.elf" | rg -q 'fast_float|f2s_buffered|d2s_buffered|__real_snprintf|bmx_pico_string_(from|to)_(float|double)'; then
+if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_integer_conversion.elf" | rg -q 'fast_float|f2s_buffered|d2s_buffered|__real_snprintf|bmx_embedded_string_(from|to)_(float|double)'; then
 	echo "Floating-point conversion code leaked into the integer-only image" >&2
 	exit 1
 fi
@@ -46,7 +46,7 @@ fi
 read -r float_text_size _ float_bss_size _ < <("$toolchain/bin/arm-none-eabi-size" "$work_dir/string_float_conversion.elf" | awk 'NR == 2')
 test "$float_text_size" -le 105000
 test "$float_bss_size" -le 24000
-if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_float_conversion.elf" | rg -q '__real_snprintf|bmx_pico_string_from_(float|double)_fixed'; then
+if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_float_conversion.elf" | rg -q '__real_snprintf|bmx_embedded_string_from_(float|double)_fixed'; then
 	echo "Fixed formatting leaked into the default floating-point image" >&2
 	exit 1
 fi

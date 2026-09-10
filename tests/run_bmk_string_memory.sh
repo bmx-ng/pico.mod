@@ -26,7 +26,7 @@ test "$text_size" -le 41000
 test "$bss_size" -ge 19000
 test "$bss_size" -le 21000
 
-if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_memory.elf" | rg -q 'bmx_pico_unicode_(enable|fold_character|to_lower|to_upper)|bmx_pico_to_(lower|upper)_data'; then
+if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_memory.elf" | rg -q 'bmx_embedded_unicode_(enable|fold_character|to_lower|to_upper)|bmx_pico_to_(lower|upper)_data'; then
 	echo "Optional Unicode casing leaked into the core String image" >&2
 	exit 1
 fi

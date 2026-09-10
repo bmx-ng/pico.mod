@@ -1,54 +1,10 @@
 #ifndef BLITZMAX_PICO_RUNTIME_H
 #define BLITZMAX_PICO_RUNTIME_H
 
-#include <stddef.h>
-#include <stdint.h>
-#include <setjmp.h>
+#include "blitzmax/embedded_runtime.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Abstract method thunks emitted by bcc2 call the BRL.Blitz trap directly. */
-void brl_blitz_NullMethodError(void);
-
-/* Scalar BRL.Blitz intrinsics. Functions, rather than macros, preserve the
-   BlitzMax rule that each argument expression is evaluated exactly once. */
-#define BMX_PICO_MINMAX(type, suffix) \
-    static inline type bmx_pico_min_##suffix(type a, type b) { return a > b ? b : a; } \
-    static inline type bmx_pico_max_##suffix(type a, type b) { return a < b ? b : a; }
-
-BMX_PICO_MINMAX(int32_t, i32)
-BMX_PICO_MINMAX(int64_t, i64)
-BMX_PICO_MINMAX(float, f32)
-BMX_PICO_MINMAX(double, f64)
-BMX_PICO_MINMAX(uint8_t, u8)
-BMX_PICO_MINMAX(uint16_t, u16)
-BMX_PICO_MINMAX(uint32_t, u32)
-BMX_PICO_MINMAX(uint64_t, u64)
-BMX_PICO_MINMAX(size_t, size)
-BMX_PICO_MINMAX(long, long)
-BMX_PICO_MINMAX(unsigned long, ulong)
-
-#undef BMX_PICO_MINMAX
-
-static inline int32_t bmx_pico_abs_i32(int32_t value) { return value >= 0 ? value : -value; }
-static inline int64_t bmx_pico_abs_i64(int64_t value) { return value >= 0 ? value : -value; }
-static inline float bmx_pico_abs_f32(float value) { return __builtin_fabsf(value); }
-static inline double bmx_pico_abs_f64(double value) { return __builtin_fabs(value); }
-static inline int32_t bmx_pico_sgn_i32(int32_t value) { return value == 0 ? 0 : (value > 0 ? 1 : -1); }
-static inline int64_t bmx_pico_sgn_i64(int64_t value) { return value == 0 ? 0 : (value > 0 ? 1 : -1); }
-static inline float bmx_pico_sgn_f32(float value) { return value == 0 ? 0.0f : (value > 0 ? 1.0f : -1.0f); }
-static inline double bmx_pico_sgn_f64(double value) { return value == 0 ? 0.0 : (value > 0 ? 1.0 : -1.0); }
-
-typedef struct BMXPicoString {
-    int32_t length;
-    const uint16_t *buf;
-} BMXPicoString;
-
-/* Binary-compatible with Pub.Time.SDateTime. Keeping this native shape in the
-   runtime lets Pub.Time and Pico.System.Calendar share one implementation
-   without introducing a module dependency cycle. */
+/* Binary-compatible with Pub.Time.SDateTime. Pico.System.Calendar keeps the
+   native shape here without introducing a module dependency cycle. */
 typedef struct BMXPicoCalendarDateTime {
     int32_t year;
     int32_t month;
@@ -62,212 +18,16 @@ typedef struct BMXPicoCalendarDateTime {
     int32_t dst;
 } BMXPicoCalendarDateTime;
 
-typedef struct BMXPicoValueDescriptor BMXPicoValueDescriptor;
-typedef void (*BMXPicoArrayInitializer)(void *element);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef struct BMXPicoArray {
-    int32_t length;
-    uint32_t element_size;
-    uint16_t element_kind;
-    uint16_t reserved;
-    BMXPicoArrayInitializer initializer;
-    const BMXPicoValueDescriptor *element_descriptor;
-} BMXPicoArray;
-
-/* Standard BlitzMax native ABI spelling retained for shared BRL code. */
-typedef BMXPicoArray *BBARRAY;
-
-typedef struct BMXPicoEnumDescriptor {
-    const char *name;
-    const uint64_t *values;
-    const BMXPicoString *const *names;
-    uint16_t count;
-    uint16_t element_size;
-    uint16_t flags;
-} BMXPicoEnumDescriptor;
-
-#define BMX_PICO_ENUM_FLAG_FLAGS 0x0001u
-
-#define BMX_PICO_ARRAY_ELEMENT_VALUE 0u
-#define BMX_PICO_ARRAY_ELEMENT_STRING 1u
-#define BMX_PICO_ARRAY_ELEMENT_OBJECT 2u
-
-typedef struct BMXPicoValueField {
-    uint32_t offset;
-    uint32_t stride;
-    uint32_t count;
-    uint16_t kind;
-    const BMXPicoValueDescriptor *descriptor;
-} BMXPicoValueField;
-
-struct BMXPicoValueDescriptor {
-    const char *name;
-    uint32_t size;
-    const BMXPicoValueField *fields;
-    uint32_t field_count;
-};
-
-#define BMX_PICO_VALUE_OBJECT 1u
-#define BMX_PICO_VALUE_ARRAY 2u
-#define BMX_PICO_VALUE_STRING 3u
-#define BMX_PICO_VALUE_STRUCT 4u
-
-typedef void (*BMXPicoTraceVisitor)(void *reference, void *context);
-typedef void (*BMXPicoTraceFunction)(void *object, BMXPicoTraceVisitor visitor, void *context);
-typedef void (*BMXPicoFinalizer)(void *object);
-typedef void (*BMXPicoMethod)(void);
-typedef struct BMXPicoInterfaceDescriptor {
-    const char *name;
-    const char *abi_name;
-} BMXPicoInterfaceDescriptor;
-
-typedef struct BMXPicoInterfaceEntry {
-    const BMXPicoInterfaceDescriptor *interface_type;
-    const BMXPicoMethod *methods;
-    uint32_t method_count;
-} BMXPicoInterfaceEntry;
-typedef int32_t (*BMXPicoObjectCompare)(void *object, void *other);
-typedef uint32_t (*BMXPicoObjectHashCode)(void *object);
-typedef int32_t (*BMXPicoObjectEquals)(void *object, void *other);
-
-typedef struct BMXPicoTypeDescriptor {
-    const char *name;
-    const char *abi_name;
-    uint32_t instance_size;
-    const struct BMXPicoTypeDescriptor *super;
-    const BMXPicoMethod *methods;
-    uint32_t method_count;
-    const BMXPicoInterfaceEntry *interfaces;
-    uint32_t interface_count;
-    const uint32_t *reference_offsets;
-    uint32_t reference_count;
-    const uint32_t *array_offsets;
-    uint32_t array_count;
-    const uint32_t *string_offsets;
-    uint32_t string_count;
-    const BMXPicoValueField *value_fields;
-    uint32_t value_field_count;
-    uint16_t flags;
-    BMXPicoTraceFunction trace;
-    BMXPicoFinalizer finalizer;
-    BMXPicoObjectCompare compare;
-    BMXPicoObjectHashCode hash_code;
-    BMXPicoObjectEquals equals;
-} BMXPicoTypeDescriptor;
-
-typedef struct BMXPicoObject {
-    const BMXPicoTypeDescriptor *type;
-} BMXPicoObject;
-
-typedef struct BMXPicoClosure {
-    BMXPicoObject object;
-    BMXPicoMethod invoke;
-    BMXPicoObject *environment;
-} BMXPicoClosure;
-
-#define BMX_PICO_EXCEPTION_NONE 0u
-#define BMX_PICO_EXCEPTION_OBJECT 1u
-#define BMX_PICO_EXCEPTION_ARRAY 2u
-#define BMX_PICO_EXCEPTION_STRING 3u
-
-typedef struct BMXPicoException {
-    void *value;
-    uint16_t kind;
-    uint16_t reserved;
-} BMXPicoException;
-
-typedef struct BMXPicoRootSlot {
-    void *address;
-    uint16_t kind;
-    const BMXPicoValueDescriptor *descriptor;
-} BMXPicoRootSlot;
-
-#define BMX_PICO_ROOT_OBJECT 1u
-#define BMX_PICO_ROOT_ARRAY 2u
-#define BMX_PICO_ROOT_STRING 3u
-#define BMX_PICO_ROOT_STRUCT 4u
-#define BMX_PICO_ROOT_EXCEPTION 5u
-
-typedef struct BMXPicoRootFrame {
-    struct BMXPicoRootFrame *previous;
-    BMXPicoRootSlot *slots;
-    uint16_t slot_count;
-} BMXPicoRootFrame;
-
-typedef struct BMXPicoExceptionFrame {
-    struct BMXPicoExceptionFrame *previous;
-    BMXPicoRootFrame *root_snapshot;
-    uint32_t root_frame_count;
-    uint32_t root_slot_count;
-    jmp_buf buffer;
-} BMXPicoExceptionFrame;
-
-#define BMX_PICO_TYPE_FLAG_CUSTOM_TRACE 0x0001u
-#define BMX_PICO_TYPE_FLAG_HAS_FINALIZER 0x0002u
-
-extern const BMXPicoString bmx_pico_empty_string;
-extern BMXPicoArray bmx_pico_empty_array;
-extern BMXPicoObject bmx_pico_null_object;
-
-int32_t bmx_pico_object_is_string(BMXPicoObject *value);
-
-int32_t bmx_pico_string_compare(const BMXPicoString *left, const BMXPicoString *right);
-int32_t bmx_pico_string_equals(const BMXPicoString *left, const BMXPicoString *right);
-uint32_t bmx_pico_string_hash(const BMXPicoString *text);
-int32_t bmx_pico_string_compare_case(const BMXPicoString *left, const BMXPicoString *right, int32_t case_sensitive);
-int32_t bmx_pico_string_equals_case(const BMXPicoString *left, const BMXPicoString *right, int32_t case_sensitive);
-uint32_t bmx_pico_string_hash_case(const BMXPicoString *text, int32_t case_sensitive);
-typedef const BMXPicoString *(*BMXPicoStringCaseTransform)(const BMXPicoString *text);
-typedef uint16_t (*BMXPicoCharacterCaseFold)(uint16_t character);
-void bmx_pico_string_install_unicode_case(BMXPicoStringCaseTransform lower,
-    BMXPicoStringCaseTransform upper, BMXPicoCharacterCaseFold fold);
-uint16_t bmx_pico_string_fold_character(uint16_t character);
-const BMXPicoString *bmx_pico_string_to_string(const BMXPicoString *text);
-int32_t bmx_pico_string_find(const BMXPicoString *text, const BMXPicoString *substring, int32_t start);
-int32_t bmx_pico_string_find_last(const BMXPicoString *text, const BMXPicoString *substring, int32_t start);
-const BMXPicoString *bmx_pico_string_trim(const BMXPicoString *text);
-const BMXPicoString *bmx_pico_string_replace(const BMXPicoString *text, const BMXPicoString *substring, const BMXPicoString *replacement);
-const BMXPicoString *bmx_pico_string_to_lower(const BMXPicoString *text);
-const BMXPicoString *bmx_pico_string_to_upper(const BMXPicoString *text);
-int32_t bmx_pico_string_starts_with(const BMXPicoString *text, const BMXPicoString *substring);
-int32_t bmx_pico_string_ends_with(const BMXPicoString *text, const BMXPicoString *substring);
-int32_t bmx_pico_string_contains(const BMXPicoString *text, const BMXPicoString *substring);
-const BMXPicoString *bmx_pico_string_replicate(const BMXPicoString *text, int32_t count);
-BMXPicoArray *bmx_pico_string_split(const BMXPicoString *text, const BMXPicoString *separator);
-const BMXPicoString *bmx_pico_string_join(const BMXPicoString *separator, BMXPicoArray *parts);
-const BMXPicoString *bmx_pico_string_from_bytes(const uint8_t *bytes, int32_t count);
-const BMXPicoString *bmx_pico_string_from_shorts(const uint16_t *characters, int32_t count);
-const BMXPicoString *bmx_pico_string_from_c_string(const uint8_t *bytes);
-const BMXPicoString *bmx_pico_string_from_w_string(const uint16_t *characters);
-const BMXPicoString *bmx_pico_string_from_ascii(const char *bytes, int32_t count);
-const BMXPicoString *bmx_pico_string_from_utf8_string(const uint8_t *bytes);
-const BMXPicoString *bmx_pico_string_from_utf8_bytes(const uint8_t *bytes, int32_t count);
-uint8_t *bmx_pico_string_to_c_string(const BMXPicoString *text);
-uint16_t *bmx_pico_string_to_w_string(const BMXPicoString *text);
-uint16_t *bmx_pico_string_to_w_string_buffer(const BMXPicoString *text, uint16_t *buffer, size_t *length);
-uint8_t *bmx_pico_string_to_utf8_string(const BMXPicoString *text);
-uint8_t *bmx_pico_string_to_utf8_string_len(const BMXPicoString *text, size_t *length);
-uint8_t *bmx_pico_string_to_utf8_string_buffer(const BMXPicoString *text, uint8_t *buffer, size_t *length);
-uint32_t *bmx_pico_string_to_utf32_string(const BMXPicoString *text);
-const BMXPicoString *bmx_pico_string_from_utf32_string(const uint32_t *characters);
-const BMXPicoString *bmx_pico_string_from_utf32_bytes(const uint32_t *characters, size_t count);
-const BMXPicoString *bmx_pico_string_from_bytes_as_hex(const uint8_t *bytes, int32_t length, int32_t upper_case);
-int32_t bmx_pico_string_to_bytes_from_hex(const BMXPicoString *text, uint8_t *bytes, int32_t length);
-int32_t bmx_pico_string_to_bytes_from_hex_ex(const BMXPicoString *text, int32_t offset, int32_t count, uint8_t *bytes, int32_t length);
-const BMXPicoString *bmx_pico_stream_url_string(BMXPicoObject *value);
-const BMXPicoString *bmx_pico_string_concat(const BMXPicoString *left, const BMXPicoString *right);
-const BMXPicoString *bmx_pico_string_slice(const BMXPicoString *text, int32_t begin, int32_t end);
-const BMXPicoString *bmx_pico_string_from_char(int32_t character);
-int32_t bmx_pico_string_asc(const BMXPicoString *text);
-int32_t bmx_pico_put_string(const BMXPicoString *text);
+int32_t bmx_pico_put_string(const BMXEmbeddedString *text);
 int32_t bmx_pico_stdio_init_all(void);
-void bmx_pico_debug_stop(void);
 int64_t bmx_pico_stdio_read(void *buffer, int64_t count);
 int64_t bmx_pico_stdio_write(void *buffer, int64_t count);
 void bmx_pico_stdio_flush(void);
 int32_t bmx_pico_putchar_raw(int32_t character);
-void bmx_pico_delay(int32_t milliseconds);
-void bmx_pico_udelay(int32_t microseconds);
 void bmx_pico_system_wait(void);
 int32_t bmx_pico_event_post_from_irq(uint32_t token, uint32_t event_data,
     uint32_t detail);
@@ -277,183 +37,6 @@ int32_t bmx_pico_event_take(uint32_t *token, uint32_t *event_data,
     uint32_t *event_mods, uint32_t *event_x, uint32_t *event_y);
 uint32_t bmx_pico_event_pending(void);
 uint32_t bmx_pico_event_dropped(void);
-uint32_t bmx_pico_string_failure_count(void);
-uint32_t bmx_pico_string_allocation_count(void);
-uint32_t bmx_pico_string_allocated_bytes(void);
-uint32_t bmx_pico_string_live_count(void);
-uint32_t bmx_pico_string_live_bytes(void);
-uint32_t bmx_pico_reachable_string_count(void);
-uint32_t bmx_pico_unreachable_string_count(void);
-
-const BMXPicoString *bmx_pico_string_from_int32(int32_t value);
-const BMXPicoString *bmx_pico_string_from_uint32(uint32_t value);
-const BMXPicoString *bmx_pico_string_from_int64(int64_t value);
-const BMXPicoString *bmx_pico_string_from_uint64(uint64_t value);
-const BMXPicoString *bmx_pico_string_from_size(size_t value);
-const BMXPicoString *bmx_pico_string_from_long(long value);
-const BMXPicoString *bmx_pico_string_from_ulong(unsigned long value);
-BMXPicoString *bmx_pico_string_allocate(int32_t length);
-int32_t bmx_pico_string_to_int32(const BMXPicoString *text);
-uint32_t bmx_pico_string_to_uint32(const BMXPicoString *text);
-int64_t bmx_pico_string_to_int64(const BMXPicoString *text);
-uint64_t bmx_pico_string_to_uint64(const BMXPicoString *text);
-size_t bmx_pico_string_to_size(const BMXPicoString *text);
-long bmx_pico_string_to_long(const BMXPicoString *text);
-unsigned long bmx_pico_string_to_ulong(const BMXPicoString *text);
-BMXPicoArray *bmx_pico_string_split_ints(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_bytes(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_shorts(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_uints(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_longs(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_ulongs(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_sizes(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_long_ints(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_ulong_ints(const BMXPicoString *text, const BMXPicoString *separator);
-const BMXPicoString *bmx_pico_string_join_ints(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_bytes(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_shorts(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_uints(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_longs(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_ulongs(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_sizes(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_long_ints(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_ulong_ints(const BMXPicoString *separator, BMXPicoArray *values);
-BMXPicoArray *bmx_pico_string_split_floats(const BMXPicoString *text, const BMXPicoString *separator);
-BMXPicoArray *bmx_pico_string_split_doubles(const BMXPicoString *text, const BMXPicoString *separator);
-const BMXPicoString *bmx_pico_string_join_floats_default(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_floats_fixed(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_doubles_default(const BMXPicoString *separator, BMXPicoArray *values);
-const BMXPicoString *bmx_pico_string_join_doubles_fixed(const BMXPicoString *separator, BMXPicoArray *values);
-static inline const BMXPicoString *bmx_pico_string_join_floats(const BMXPicoString *separator,
-    BMXPicoArray *values, int32_t fixed) {
-    return fixed ? bmx_pico_string_join_floats_fixed(separator, values) :
-        bmx_pico_string_join_floats_default(separator, values);
-}
-static inline const BMXPicoString *bmx_pico_string_join_doubles(const BMXPicoString *separator,
-    BMXPicoArray *values, int32_t fixed) {
-    return fixed ? bmx_pico_string_join_doubles_fixed(separator, values) :
-        bmx_pico_string_join_doubles_default(separator, values);
-}
-const BMXPicoString *bmx_pico_string_from_float_default(float value);
-const BMXPicoString *bmx_pico_string_from_double_default(double value);
-const BMXPicoString *bmx_pico_string_from_float_fixed(float value);
-const BMXPicoString *bmx_pico_string_from_double_fixed(double value);
-static inline const BMXPicoString *bmx_pico_string_from_float(float value, int32_t fixed) {
-    return fixed ? bmx_pico_string_from_float_fixed(value) : bmx_pico_string_from_float_default(value);
-}
-static inline const BMXPicoString *bmx_pico_string_from_double(double value, int32_t fixed) {
-    return fixed ? bmx_pico_string_from_double_fixed(value) : bmx_pico_string_from_double_default(value);
-}
-float bmx_pico_string_to_float(const BMXPicoString *text);
-double bmx_pico_string_to_double(const BMXPicoString *text);
-
-BMXPicoArray *bmx_pico_enum_values(const BMXPicoEnumDescriptor *descriptor);
-const BMXPicoString *bmx_pico_enum_to_string(const BMXPicoEnumDescriptor *descriptor, uint64_t value);
-int32_t bmx_pico_enum_try_convert(const BMXPicoEnumDescriptor *descriptor, uint64_t value, void *result);
-uint64_t bmx_pico_enum_from_string(const BMXPicoEnumDescriptor *descriptor, const BMXPicoString *name);
-uint32_t bmx_pico_enum_failure_count(void);
-
-BMXPicoArray *bmx_pico_array_new_1d(int32_t length, uint32_t element_size, uint16_t element_kind, BMXPicoArrayInitializer initializer, const BMXPicoValueDescriptor *element_descriptor);
-BMXPicoArray *bmx_pico_array_from_data(int32_t length, uint32_t element_size, uint16_t element_kind, BMXPicoArrayInitializer initializer, const BMXPicoValueDescriptor *element_descriptor, const void *data);
-BMXPicoArray *bmx_pico_array_concat(BMXPicoArray *left, BMXPicoArray *right);
-void bbArrayCopy(BBARRAY src, int src_pos, BBARRAY dst, int dst_pos, int length);
-BMXPicoArray *bmx_pico_array_slice(BMXPicoArray *array, int32_t begin, int32_t end,
-    uint32_t element_size, uint16_t element_kind, BMXPicoArrayInitializer initializer,
-    const BMXPicoValueDescriptor *element_descriptor);
-void *bmx_pico_array_element(BMXPicoArray *array, int32_t index, uint32_t element_size);
-void *bmx_pico_array_data(BMXPicoArray *array);
-
-void *bbMemAlloc(size_t size);
-void bbMemFree(void *memory);
-void *bbMemExtend(void *memory, size_t size, size_t new_size);
-void *bbMemAllocCollectable(size_t size);
-void bbMemFreeCollectable(void *memory);
-void *bbMemExtendCollectable(void *memory, size_t size, size_t new_size);
-void bbMemClear(void *memory, size_t size);
-void bbMemCopy(void *destination, const void *source, size_t size);
-void bbMemMove(void *destination, const void *source, size_t size);
-
-int32_t bbIncbinAdd(const BMXPicoString *path, const void *data, int32_t size);
-void *bbIncbinPtr(const BMXPicoString *path);
-int32_t bbIncbinLen(const BMXPicoString *path);
-
-void *brl_blitz_MemAlloc__Bsize_t__Bint(size_t size, int32_t collectable);
-void brl_blitz_MemFree__PBbyte__Bint(void *memory, int32_t collectable);
-void *brl_blitz_MemExtend__PBbyte__Bsize_t__Bsize_t__Bint(void *memory, size_t size, size_t new_size, int32_t collectable);
-uint32_t bmx_pico_array_failure_count(void);
-uint32_t bmx_pico_array_allocation_count(void);
-uint32_t bmx_pico_array_allocated_bytes(void);
-uint32_t bmx_pico_array_live_count(void);
-uint32_t bmx_pico_array_live_bytes(void);
-uint32_t bmx_pico_reachable_array_count(void);
-uint32_t bmx_pico_unreachable_array_count(void);
-
-void *bmx_pico_object_allocate(const BMXPicoTypeDescriptor *type);
-void *bmx_pico_object_assert(void *object);
-void *bmx_pico_object_null_failure(void);
-static inline void *bmx_pico_object_not_null(void *object) {
-    if (!object || object == &bmx_pico_null_object) return bmx_pico_object_null_failure();
-    return object;
-}
-int32_t bmx_pico_object_compare(void *object, void *other);
-uint32_t bmx_pico_object_hash_code(void *object);
-int32_t bmx_pico_object_equals(void *object, void *other);
-void *bmx_pico_object_cast(void *object, const BMXPicoTypeDescriptor *target);
-const BMXPicoMethod *bmx_pico_type_methods(void *object, const BMXPicoTypeDescriptor *target, uint32_t method_count);
-void *bmx_pico_interface_cast(void *object, const BMXPicoInterfaceDescriptor *target);
-const BMXPicoMethod *bmx_pico_interface_methods(void *object, const BMXPicoInterfaceDescriptor *target, uint32_t method_count);
-BMXPicoClosure *bmx_pico_closure_allocate(BMXPicoMethod invoke, BMXPicoObject *environment);
-BMXPicoClosure *bmx_pico_closure_assert(void *closure);
-uint32_t bmx_pico_object_failure_count(void);
-uint32_t bmx_pico_object_allocation_count(void);
-uint32_t bmx_pico_object_allocated_bytes(void);
-uint32_t bmx_pico_object_live_count(void);
-uint32_t bmx_pico_object_live_bytes(void);
-uint32_t bmx_pico_object_root_retain(BMXPicoObject *object);
-void bmx_pico_object_root_release(uint32_t token);
-uint32_t bmx_pico_object_root_count(void);
-uint32_t bmx_pico_reachability_audit(void);
-uint32_t bmx_pico_reachable_object_count(void);
-uint32_t bmx_pico_unreachable_object_count(void);
-uint32_t bmx_pico_invalid_reference_count(void);
-uint32_t bmx_pico_collect_objects(void);
-uint32_t bmx_pico_collection_count(void);
-uint32_t bmx_pico_automatic_collection_count(void);
-uint32_t bmx_pico_last_reclaimed_object_count(void);
-uint32_t bmx_pico_last_reclaimed_bytes(void);
-uint32_t bmx_pico_last_reclaimed_array_count(void);
-uint32_t bmx_pico_last_reclaimed_array_bytes(void);
-uint32_t bmx_pico_last_reclaimed_string_count(void);
-uint32_t bmx_pico_last_reclaimed_string_bytes(void);
-uint32_t bmx_pico_finalizer_pending_count(void);
-uint32_t bmx_pico_finalizer_invocation_count(void);
-uint32_t bmx_pico_last_finalized_object_count(void);
-uint32_t bmx_pico_heap_reusable_bytes(void);
-uint32_t bmx_pico_heap_largest_free_block(void);
-void bmx_pico_root_frame_enter(BMXPicoRootFrame *frame, BMXPicoRootSlot *slots, uint16_t slot_count);
-void bmx_pico_root_frame_leave(BMXPicoRootFrame *frame);
-uint32_t bmx_pico_root_frame_count(void);
-uint32_t bmx_pico_root_slot_count(void);
-void bmx_pico_exception_enter(BMXPicoExceptionFrame *frame);
-void bmx_pico_exception_leave(void);
-BMXPicoException bmx_pico_exception_object(BMXPicoObject *value);
-BMXPicoException bmx_pico_exception_array(BMXPicoArray *value);
-BMXPicoException bmx_pico_exception_string(const BMXPicoString *value);
-BMXPicoException bmx_pico_exception_catch(void);
-void bmx_pico_exception_throw(BMXPicoException exception);
-uint32_t bmx_pico_exception_depth(void);
-uint32_t bmx_pico_exception_throw_count(void);
-uint32_t bmx_pico_exception_catch_count(void);
-uint32_t bmx_pico_exception_max_depth(void);
-uint32_t bmx_pico_exception_unhandled_count(void);
-
-void *bmx_pico_arena_allocate(uint32_t bytes);
-uint32_t bmx_pico_arena_capacity(void);
-uint32_t bmx_pico_arena_used(void);
-uint32_t bmx_pico_arena_remaining(void);
-uint32_t bmx_pico_arena_high_water(void);
-uint32_t bmx_pico_arena_allocation_count(void);
-uint32_t bmx_pico_arena_failure_count(void);
 int32_t bmx_pico_psram_available(void);
 uint32_t bmx_pico_psram_capacity(void);
 int32_t bmx_pico_psram_contains(void *address);
@@ -468,8 +51,8 @@ uint32_t bmx_pico_watchdog_time_remaining_us(void);
 uint32_t bmx_pico_watchdog_time_remaining_ms(void);
 int32_t bmx_pico_watchdog_reboot(uint32_t delay_ms);
 
-const BMXPicoString *bmx_pico_unique_board_id(void);
-BMXPicoArray *bmx_pico_unique_board_id_bytes(void);
+const BMXEmbeddedString *bmx_pico_unique_board_id(void);
+BMXEmbeddedArray *bmx_pico_unique_board_id_bytes(void);
 int32_t bmx_pico_bootsel_button_pressed(void);
 int32_t bmx_pico_device_reboot(uint32_t delay_ms);
 int32_t bmx_pico_device_reboot_to_bootsel(int32_t activity_pin, int32_t activity_pin_active_low,
@@ -515,7 +98,7 @@ int32_t bmx_pico_gpio_set_event_token(uint32_t gpio, uint32_t token);
 uint32_t bmx_pico_gpio_pending_irq_events(uint32_t gpio);
 uint32_t bmx_pico_gpio_take_irq_events(uint32_t gpio);
 
-int32_t bmx_pico_millisecs(void);
+int32_t bmx_embedded_millisecs(void);
 uint64_t bmx_pico_time_microseconds(void);
 uint32_t bmx_pico_system_clock_hz(void);
 uint64_t bmx_pico_time_milliseconds(void);
@@ -876,7 +459,7 @@ int32_t bmx_pico_dma_timer_configure(uint32_t timer, uint32_t numerator,
     uint32_t denominator);
 int32_t bmx_pico_dma_timer_unclaim(uint32_t timer);
 uint32_t bmx_pico_dma_timer_dreq(uint32_t timer);
-void *bmx_pico_pio_find_program(const BMXPicoString *name);
+void *bmx_pico_pio_find_program(const BMXEmbeddedString *name);
 uint16_t *bmx_pico_pio_program_instructions(void *program);
 uint32_t bmx_pico_pio_program_length(void *program);
 int32_t bmx_pico_pio_program_origin(void *program);

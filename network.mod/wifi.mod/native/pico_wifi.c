@@ -16,7 +16,7 @@
 #define BMX_PICO_WIFI_WPA_MAX_PASSWORD_LENGTH 64u
 #define BMX_PICO_WIFI_WPA_SAE_MAX_PASSWORD_LENGTH 128u
 
-typedef struct BMXPicoWiFiEvent {
+typedef struct BMXEmbeddedWiFiEvent {
     int32_t kind;
     uint8_t ssid_length;
     uint8_t ssid[32];
@@ -28,9 +28,9 @@ typedef struct BMXPicoWiFiEvent {
     uint32_t address;
     uint32_t netmask;
     uint32_t gateway;
-} BMXPicoWiFiEvent;
+} BMXEmbeddedWiFiEvent;
 
-static BMXPicoWiFiEvent bmx_pico_wifi_events[BMX_PICO_WIFI_EVENT_CAPACITY];
+static BMXEmbeddedWiFiEvent bmx_pico_wifi_events[BMX_PICO_WIFI_EVENT_CAPACITY];
 static volatile uint32_t bmx_pico_wifi_event_put;
 static volatile uint32_t bmx_pico_wifi_event_get;
 static volatile uint32_t bmx_pico_wifi_dropped_event_count;
@@ -47,7 +47,7 @@ static uint32_t bmx_pico_wifi_pack_address(const ip4_addr_t *address) {
         ((uint32_t)ip4_addr4(address) << 24);
 }
 
-static bool bmx_pico_wifi_queue_event(const BMXPicoWiFiEvent *event) {
+static bool bmx_pico_wifi_queue_event(const BMXEmbeddedWiFiEvent *event) {
     uint32_t interrupt_state = save_and_disable_interrupts();
     uint32_t put = bmx_pico_wifi_event_put;
     if (put - bmx_pico_wifi_event_get >= BMX_PICO_WIFI_EVENT_CAPACITY) {
@@ -68,7 +68,7 @@ static bool bmx_pico_wifi_queue_event(const BMXPicoWiFiEvent *event) {
 static int bmx_pico_wifi_scan_callback(void *environment,
         const cyw43_ev_scan_result_t *result) {
     (void)environment;
-    BMXPicoWiFiEvent event = {0};
+    BMXEmbeddedWiFiEvent event = {0};
     event.kind = BMX_PICO_WIFI_EVENT_SCAN_RESULT;
     event.ssid_length = result->ssid_len <= sizeof(event.ssid) ?
         result->ssid_len : sizeof(event.ssid);
@@ -182,12 +182,12 @@ int32_t bmx_pico_wifi_link_status(void) {
 void bmx_pico_wifi_service(void) {
     if (!bmx_pico_wifi_is_initialized) return;
     if (bmx_pico_wifi_scan_requested && !cyw43_wifi_scan_active(&cyw43_state)) {
-        BMXPicoWiFiEvent event = {0};
+        BMXEmbeddedWiFiEvent event = {0};
         event.kind = BMX_PICO_WIFI_EVENT_SCAN_COMPLETE;
         if (bmx_pico_wifi_queue_event(&event)) bmx_pico_wifi_scan_requested = false;
     }
 
-    BMXPicoWiFiEvent link_event = {0};
+    BMXEmbeddedWiFiEvent link_event = {0};
     cyw43_arch_lwip_begin();
     link_event.link_status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
     if (link_event.link_status != bmx_pico_wifi_last_link_status) {
@@ -215,7 +215,7 @@ int32_t bmx_pico_wifi_take_event(int32_t *kind, uint8_t *ssid,
         restore_interrupts(interrupt_state);
         return 0;
     }
-    BMXPicoWiFiEvent event = bmx_pico_wifi_events[get & BMX_PICO_WIFI_EVENT_MASK];
+    BMXEmbeddedWiFiEvent event = bmx_pico_wifi_events[get & BMX_PICO_WIFI_EVENT_MASK];
     bmx_pico_wifi_event_get = get + 1u;
     restore_interrupts(interrupt_state);
 

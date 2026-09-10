@@ -18,9 +18,9 @@ generated_c="$debug_build/bcc/application/application.c"
 test -s "$debug_output.elf"
 test -s "$debug_output.uf2"
 grep -Eq '#line [0-9]+ ".*/debugger_smoke\.bmx"' "$generated_c"
-grep -q 'bmx_pico_debug_stop' "$generated_c"
+grep -q 'bmx_embedded_debug_stop' "$generated_c"
 grep -q 'int32_t counter' "$generated_c"
-grep -q 'BMXPicoString \* message' "$generated_c"
+grep -q 'BMXEmbeddedString \* message' "$generated_c"
 grep -q 'int32_t debugConditional' "$generated_c"
 if grep -Eq 'bmx_v[0-9_]*_(counter|message|debugConditional)' "$generated_c"; then
 	echo "Pico debug build exposed generated rather than source variable names" >&2

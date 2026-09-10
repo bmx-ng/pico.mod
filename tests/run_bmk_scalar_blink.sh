@@ -20,8 +20,8 @@ toolchain="${PICO_TOOLCHAIN_PATH:-}"
 if [[ -z "$toolchain" ]]; then
 	toolchain="$(find "$HOME/.pico-sdk/toolchain" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
 fi
-size_tool="$toolchain/bin/arm-none-eabi-size"
-size_text="$($size_tool "$work_dir/scalar_blink.elf" | awk 'NR == 2 { print $1 }')"
+size_text_hex="$("$toolchain/bin/arm-none-eabi-objdump" -h "$work_dir/scalar_blink.elf" | awk '$2 == ".text" { print $3 }')"
+size_text="$((16#$size_text_hex))"
 test "$size_text" -le 32768
 
 if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/scalar_blink.elf" | rg -q 'bmx_pico_gpio_(irq_callback|set_irq_enabled|pending_irq_events|take_irq_events)|bmx_pico_gpio_irq_events'; then

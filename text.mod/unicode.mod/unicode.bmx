@@ -13,7 +13,7 @@ ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
 
 Extern "C"
-	Function EnableUnicodeStringCase() = "bmx_pico_unicode_enable"
+	Function EnableUnicodeStringCase() = "bmx_embedded_unicode_enable"
 End Extern
 
 EnableUnicodeStringCase()

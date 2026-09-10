@@ -25,8 +25,8 @@ read -r text_size _ bss_size _ < <("$toolchain/bin/arm-none-eabi-size" "$work_di
 test "$text_size" -le 40000
 test "$bss_size" -le 24000
 
-"$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_split_join_memory.elf" | rg -q ' bmx_pico_string_split$'
-"$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_split_join_memory.elf" | rg -q ' bmx_pico_string_join$'
+"$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_split_join_memory.elf" | rg -q ' bmx_embedded_string_split$'
+"$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_split_join_memory.elf" | rg -q ' bmx_embedded_string_join$'
 if "$toolchain/bin/arm-none-eabi-nm" "$work_dir/string_split_join_memory.elf" | rg -q 'fast_float|f2s_buffered|d2s_buffered|__real_snprintf'; then
 	echo "Numeric conversion code leaked into the String-only Split/Join image" >&2
 	exit 1
