@@ -35,17 +35,17 @@ if [[ -z "$toolchain" ]]; then
 fi
 
 wifi_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/wifi-scan-pico2_w.elf")"
-rg -q ' T bmx_pico_wifi_initialize$' <<<"$wifi_symbols"
-rg -q ' T bmx_pico_wifi_start_scan$' <<<"$wifi_symbols"
+rg -q ' T bmx_embedded_wifi_initialize$' <<<"$wifi_symbols"
+rg -q ' T bmx_embedded_wifi_start_scan$' <<<"$wifi_symbols"
 rg -q ' T cyw43_wifi_scan$' <<<"$wifi_symbols"
 rg -q ' T dhcp_start$' <<<"$wifi_symbols"
 
 connect_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/wifi-connect-pico2_w.elf")"
-rg -q ' T bmx_pico_wifi_connect$' <<<"$connect_symbols"
+rg -q ' T bmx_embedded_wifi_connect$' <<<"$connect_symbols"
 rg -q ' T dhcp_start$' <<<"$connect_symbols"
 
 no_wifi_symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/no-wifi.elf")"
-if rg -q ' (bmx_pico_wifi_|cyw43_wifi_scan$)' <<<"$no_wifi_symbols"; then
+if rg -q ' (bmx_embedded_wifi_|cyw43_wifi_scan$)' <<<"$no_wifi_symbols"; then
 	echo "Wireless driver symbols leaked into an application which does not import Pico.Network.WiFi" >&2
 	exit 1
 fi

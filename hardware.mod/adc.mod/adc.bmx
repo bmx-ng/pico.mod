@@ -25,6 +25,14 @@ Const ADCMaximumValue:UInt = $fff
 Const ADCFIFOErrorBit:UInt = $8000
 
 Extern "C"
+	' Pin-oriented operations shared with Embedded.Hardware.ADC.
+	Function ADCIsValidPin:Int(pin:UInt) = "bmx_embedded_adc_is_valid_pin"
+	Function ADCInitPin:Int(pin:UInt) = "bmx_embedded_adc_init_pin"
+	Function ADCDeinitPin:Int(pin:UInt) = "bmx_embedded_adc_deinit_pin"
+	Function ADCReadRaw:Int(pin:UInt, value:UInt Var) = "bmx_embedded_adc_read_raw"
+	Function ADCResolutionBitsForPin:UInt(pin:UInt) = "bmx_embedded_adc_resolution_bits"
+	Function ADCMaximumValueForPin:UInt(pin:UInt) = "bmx_embedded_adc_maximum_value"
+
 	Function ADCInit() = "bmx_pico_adc_init"
 	Function ADCGPIOInit(pin:UInt) = "bmx_pico_adc_gpio_init"
 	Function ADCInputForGPIO:Int(pin:UInt) = "bmx_pico_adc_input_for_gpio"

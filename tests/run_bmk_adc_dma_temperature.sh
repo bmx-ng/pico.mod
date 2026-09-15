@@ -27,7 +27,7 @@ test "$bss_size" -le 26000
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/adc_dma_temperature.elf")"
 rg -q ' T bmx_pico_adc_fifo_address$' <<<"$symbols"
 rg -q ' T bmx_pico_adc_dreq$' <<<"$symbols"
-rg -q ' T bmx_pico_dma_configure$' <<<"$symbols"
+rg -q ' T bmx_pico_dma_configure_advanced$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_take_completion_events$' <<<"$symbols"
 
 echo "Pico ADC DMA image: board=$board text=$text_size bss=$bss_size"

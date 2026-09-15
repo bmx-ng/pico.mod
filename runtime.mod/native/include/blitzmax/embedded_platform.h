@@ -9,10 +9,10 @@
    code shape and does not add a call on allocation or exception paths. */
 #define BMX_EMBEDDED_PLATFORM_CONTEXT_VALID() \
     (get_core_num() == 0 && __get_current_exception() == 0)
-#define BMX_EMBEDDED_PLATFORM_PANIC(message) panic(message)
+#define BMX_EMBEDDED_PLATFORM_PANIC(message) panic("%s", (message))
 
 #if BMX_EMBEDDED_ARENA_IN_PSRAM
-#define BMX_EMBEDDED_ARENA_STORAGE(name) __uninitialized_psram(name) name
+#define BMX_EMBEDDED_ARENA_STORAGE(name) __uninitialized_psram(#name) name
 #else
 #define BMX_EMBEDDED_ARENA_STORAGE(name) name
 #endif

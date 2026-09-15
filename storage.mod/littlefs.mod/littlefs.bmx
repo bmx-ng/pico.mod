@@ -150,12 +150,6 @@ End Type
 
 Private
 
-Function _LittleFSRealPath:String(path:String)
-	Local result:String = RealPath(path)
-	If Not result.length Then Return "/"
-	Return result
-End Function
-
 Type TLittleFSBackend Extends TFileSystemBackend
 	Field _currentDirectory:String = "/"
 
@@ -169,7 +163,7 @@ Type TLittleFSBackend Extends TFileSystemBackend
 	End Method
 
 	Method OpenPath:TStream(path:String, readable:Int, writeMode:Int) Override
-		Return TLittleFSStream.Open(_LittleFSRealPath(path), readable, writeMode)
+		Return TLittleFSStream.Open(ResolvePath(path), readable, writeMode)
 	End Method
 
 	Method CurrentDirectory:String() Override
@@ -177,7 +171,7 @@ Type TLittleFSBackend Extends TFileSystemBackend
 	End Method
 
 	Method ChangeDirectory:Int(path:String) Override
-		Local realPath:String = _LittleFSRealPath(path)
+		Local realPath:String = ResolvePath(path)
 		Local info:SFileStat
 		If Not Stat(realPath, info) Or info.fileType <> FILETYPE_DIR Then Return False
 		_currentDirectory = realPath
@@ -190,7 +184,7 @@ Type TLittleFSBackend Extends TFileSystemBackend
 		Local modified:Long
 		Local created:Long
 		Local accessed:Long
-		If _LittleFSStat(_LittleFSRealPath(path), fileType, size, modified, created, accessed) < 0 Then Return False
+		If _LittleFSStat(ResolvePath(path), fileType, size, modified, created, accessed) < 0 Then Return False
 		info.fileType = fileType
 		info.size = size
 		info.modifiedTime = modified
@@ -201,7 +195,7 @@ Type TLittleFSBackend Extends TFileSystemBackend
 	End Method
 
 	Method SetTime(path:String, time:Long, timeType:Int) Override
-		_LittleFSSetTime(_LittleFSRealPath(path), time, timeType)
+		_LittleFSSetTime(ResolvePath(path), time, timeType)
 	End Method
 
 	Method FileMode:Int(path:String) Override
@@ -212,34 +206,34 @@ Type TLittleFSBackend Extends TFileSystemBackend
 	End Method
 
 	Method CreateFile:Int(path:String) Override
-		Local stream:TLittleFSStream = TLittleFSStream.Open(_LittleFSRealPath(path), False, WRITE_MODE_OVERWRITE)
+		Local stream:TLittleFSStream = TLittleFSStream.Open(ResolvePath(path), False, WRITE_MODE_OVERWRITE)
 		If Not stream Then Return False
 		stream.Close()
 		Return True
 	End Method
 
 	Method CreateDirectory:Int(path:String) Override
-		Return _LittleFSMkdir(_LittleFSRealPath(path)) = 0
+		Return _LittleFSMkdir(ResolvePath(path)) = 0
 	End Method
 
 	Method DeleteFile:Int(path:String) Override
 		Local info:SFileStat
 		If Not Stat(path, info) Or info.fileType <> FILETYPE_FILE Then Return False
-		Return _LittleFSRemove(_LittleFSRealPath(path)) = 0
+		Return _LittleFSRemove(ResolvePath(path)) = 0
 	End Method
 
 	Method DeleteDirectory:Int(path:String) Override
 		Local info:SFileStat
 		If Not Stat(path, info) Or info.fileType <> FILETYPE_DIR Then Return False
-		Return _LittleFSRemove(_LittleFSRealPath(path)) = 0
+		Return _LittleFSRemove(ResolvePath(path)) = 0
 	End Method
 
 	Method Rename:Int(oldPath:String, newPath:String) Override
-		Return _LittleFSRename(_LittleFSRealPath(oldPath), _LittleFSRealPath(newPath)) = 0
+		Return _LittleFSRename(ResolvePath(oldPath), ResolvePath(newPath)) = 0
 	End Method
 
 	Method OpenDirectory:Byte Ptr(path:String) Override
-		Return _LittleFSDirectoryOpen(_LittleFSRealPath(path))
+		Return _LittleFSDirectoryOpen(ResolvePath(path))
 	End Method
 
 	Method NextDirectoryEntry:String(handle:Byte Ptr) Override

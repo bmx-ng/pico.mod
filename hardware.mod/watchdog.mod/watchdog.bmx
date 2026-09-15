@@ -39,6 +39,11 @@ Extern "C"
 	Function WatchdogFeed() = "bmx_pico_watchdog_feed"
 
 	Rem
+	bbdoc: Returns True when the watchdog was enabled through this module.
+	End Rem
+	Function WatchdogIsEnabled:Int() = "bmx_embedded_watchdog_is_enabled"
+
+	Rem
 	bbdoc: Returns True if a watchdog action caused the last reboot.
 	End Rem
 	Function WatchdogCausedReboot:Int() = "bmx_pico_watchdog_caused_reboot"

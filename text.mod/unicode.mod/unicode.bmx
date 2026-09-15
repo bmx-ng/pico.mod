@@ -4,7 +4,7 @@
 SuperStrict
 
 Rem
-bbdoc: Optional Unicode-aware String case conversion and case folding for Pico targets.
+bbdoc: Pico compatibility facade for shared Unicode String case handling.
 End Rem
 Module Pico.Text.Unicode
 ?pico
@@ -12,9 +12,5 @@ Module Pico.Text.Unicode
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
 
-Extern "C"
-	Function EnableUnicodeStringCase() = "bmx_embedded_unicode_enable"
-End Extern
-
-EnableUnicodeStringCase()
+Import Embedded.Text.Unicode
 ?

@@ -28,6 +28,6 @@ symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/spi_dma_transfer.elf")"
 rg -q ' T bmx_pico_spi_data_register_address$' <<<"$symbols"
 rg -q ' T bmx_pico_spi_tx_dreq$' <<<"$symbols"
 rg -q ' T bmx_pico_spi_rx_dreq$' <<<"$symbols"
-rg -q ' T bmx_pico_dma_configure$' <<<"$symbols"
+rg -q ' T bmx_pico_dma_configure_advanced$' <<<"$symbols"
 
 echo "Pico SPI DMA image: board=$board text=$text_size bss=$bss_size"

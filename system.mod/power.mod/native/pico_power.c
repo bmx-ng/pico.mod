@@ -13,19 +13,33 @@ uint32_t bmx_pico_power_capabilities(void) {
     return capabilities;
 }
 
+uint32_t bmx_embedded_power_capabilities(void) {
+    return bmx_pico_power_capabilities();
+}
+
 void bmx_pico_power_idle(void) {
     __wfi();
 }
+
+void bmx_embedded_power_idle(void) { bmx_pico_power_idle(); }
 
 int32_t bmx_pico_power_sleep_until_interrupt(void) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     return low_power_sleep_until_irq(NULL);
 }
 
+int32_t bmx_embedded_power_sleep_until_interrupt(void) {
+    return bmx_pico_power_sleep_until_interrupt();
+}
+
 int32_t bmx_pico_power_sleep_for_ms(uint32_t milliseconds, int32_t exclusive) {
     if (!milliseconds) return PICO_ERROR_INVALID_ARG;
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     return low_power_sleep_for_ms(milliseconds, NULL, exclusive != 0);
+}
+
+int32_t bmx_embedded_power_sleep_for_ms(uint32_t milliseconds, int32_t exclusive) {
+    return bmx_pico_power_sleep_for_ms(milliseconds, exclusive);
 }
 
 int32_t bmx_pico_power_dormant_for_ms(uint32_t milliseconds) {
@@ -44,6 +58,10 @@ int32_t bmx_pico_power_dormant_for_ms(uint32_t milliseconds) {
 #endif
 }
 
+int32_t bmx_embedded_power_dormant_for_ms(uint32_t milliseconds) {
+    return bmx_pico_power_dormant_for_ms(milliseconds);
+}
+
 int32_t bmx_pico_power_dormant_until_gpio(uint32_t gpio, int32_t edge, int32_t high) {
     if (gpio >= NUM_BANK0_GPIOS) return PICO_ERROR_INVALID_ARG;
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
@@ -51,8 +69,16 @@ int32_t bmx_pico_power_dormant_until_gpio(uint32_t gpio, int32_t edge, int32_t h
         DORMANT_CLOCK_SOURCE_ROSC, NULL);
 }
 
+int32_t bmx_embedded_power_dormant_until_gpio(uint32_t gpio, int32_t edge, int32_t high) {
+    return bmx_pico_power_dormant_until_gpio(gpio, edge, high);
+}
+
 int32_t bmx_pico_power_set_unused_pins_low_leakage(uint64_t exclude_mask) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     low_power_set_pins_low_leakage_exclude_mask64(exclude_mask);
     return PICO_OK;
+}
+
+int32_t bmx_embedded_power_set_unused_pins_low_leakage(uint64_t exclude_mask) {
+    return bmx_pico_power_set_unused_pins_low_leakage(exclude_mask);
 }

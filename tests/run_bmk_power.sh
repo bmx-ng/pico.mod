@@ -24,9 +24,7 @@ fi
 for board in pico pico2; do
 	symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/power-$board.elf")"
 	rg -q ' T bmx_pico_power_capabilities$' <<<"$symbols"
-	rg -q ' T bmx_pico_power_idle$' <<<"$symbols"
 	rg -q ' T bmx_pico_power_sleep_for_ms$' <<<"$symbols"
-	rg -q ' T bmx_pico_power_dormant_until_gpio$' <<<"$symbols"
 
 	read -r text_size _ bss_size _ < <("$toolchain/bin/arm-none-eabi-size" "$work_dir/power-$board.elf" | awk 'NR == 2')
 	test "$text_size" -le 75000

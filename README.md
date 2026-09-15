@@ -85,6 +85,11 @@ Add `-x` to upload, verify, and start the generated firmware through `picotool`:
 bmk makeapp -a -r -x -l pico -g arm -board pico2 -o hello hello.bmx
 ```
 
+Inspect a connected RP-series device without building or flashing an
+application with `bmk deviceinfo -l pico`. The report contains hardware facts
+read by `picotool`; an optional `-board` value is displayed separately and is
+never inferred from the detected silicon.
+
 For the first upload, or when the running firmware does not expose automatic
 USB reset, hold BOOTSEL while connecting the board and run the command again.
 The generated UF2 can also be copied to the BOOTSEL drive manually.

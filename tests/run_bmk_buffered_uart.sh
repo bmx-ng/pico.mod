@@ -22,6 +22,6 @@ if [[ -z "$toolchain" ]]; then
 fi
 
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/buffered-uart-pico2.elf")"
-rg -q ' T bmx_pico_uart_async_open$' <<<"$symbols"
-rg -q ' T bmx_pico_uart_async_read$' <<<"$symbols"
-rg -q ' T bmx_pico_uart_async_write$' <<<"$symbols"
+rg -q ' T bmx_embedded_uart_async_open$' <<<"$symbols"
+rg -q ' T bmx_embedded_uart_async_read$' <<<"$symbols"
+rg -q ' T bmx_embedded_uart_async_write$' <<<"$symbols"

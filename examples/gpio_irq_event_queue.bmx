@@ -6,6 +6,7 @@ SuperStrict
 Framework BRL.EventQueue
 Import BRL.StandardIO
 Import Pico.Hardware.GPIO
+Import Pico.Hardware.GPIOEvents
 
 Const inputPin:UInt = 2
 

@@ -4,13 +4,13 @@
 SuperStrict
 
 Rem
-bbdoc: Pico compatibility facade for shared interrupt-buffered UART streams.
+bbdoc: Pico compatibility facade for shared managed GPIO interrupt delivery.
 End Rem
-Module Pico.IO.BufferedUART
+Module Pico.Hardware.GPIOEvents
 ?pico
 
 ModuleInfo "Version: 0.2"
 ModuleInfo "License: zlib/libpng"
 
-Import Embedded.IO.BufferedUART
+Import Embedded.Hardware.GPIOEvents
 ?

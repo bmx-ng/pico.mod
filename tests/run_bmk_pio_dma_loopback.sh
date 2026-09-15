@@ -32,7 +32,7 @@ test "$text_size" -le 68000
 test "$bss_size" -le 26000
 
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/pio_dma_loopback.elf")"
-rg -q ' T bmx_pico_dma_configure$' <<<"$symbols"
+rg -q ' T bmx_pico_dma_configure_advanced$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_set_irq_enabled$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_take_completion_events$' <<<"$symbols"
 rg -q ' T bmx_pico_pio_sm_dreq$' <<<"$symbols"
