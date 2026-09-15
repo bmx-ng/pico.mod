@@ -25,7 +25,7 @@ fi
 
 for board in pico pico2; do
 	read -r text_size _ bss_size _ < <("$toolchain/bin/arm-none-eabi-size" "$work_dir/random_pico-$board.elf" | awk 'NR == 2')
-	test "$text_size" -le 48000
+	test "$text_size" -le 52000
 	test "$bss_size" -ge 19000
 	test "$bss_size" -le 22000
 	echo "Pico SDK random image ($board): text=$text_size bss=$bss_size"

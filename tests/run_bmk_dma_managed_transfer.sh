@@ -25,7 +25,7 @@ test "$text_size" -le 76000
 test "$bss_size" -le 28000
 
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/dma_managed_transfer.elf")"
-rg -q ' T bmx_pico_dma_configure$' <<<"$symbols"
+rg -q ' T bmx_pico_dma_configure_advanced$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_abort$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_unclaim_channel$' <<<"$symbols"
 rg -q ' T bmx_embedded_collect_objects$' <<<"$symbols"

@@ -12,6 +12,8 @@ Module Pico.Hardware.PWM
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
 
+Const PWMDutyMaximum:UInt = 65535
+
 ' RP2350 exposes twelve PWM slices. GPIO-to-slice/channel mapping should be
 ' queried through PWMSliceForGPIO and PWMChannelForGPIO rather than assumed.
 
@@ -24,6 +26,19 @@ Const PWMDividerBRising:UInt = 2
 Const PWMDividerBFalling:UInt = 3
 
 Extern "C"
+	' Pin-oriented operations shared with Embedded.Hardware.PWM.
+	Function PWMIsValidPin:Int(pin:UInt) = "bmx_embedded_pwm_is_valid_pin"
+	Function PWMInitPin:UInt(pin:UInt, frequency:UInt, duty:UInt = 0, inverted:Int = False) = "bmx_embedded_pwm_init_pin"
+	Function PWMDeinitPin:Int(pin:UInt) = "bmx_embedded_pwm_deinit_pin"
+	Function PWMSetPinFrequency:UInt(pin:UInt, frequency:UInt) = "bmx_embedded_pwm_set_pin_frequency"
+	Function PWMGetPinFrequency:UInt(pin:UInt) = "bmx_embedded_pwm_get_pin_frequency"
+	Function PWMSetPinDuty:Int(pin:UInt, duty:UInt) = "bmx_embedded_pwm_set_pin_duty"
+	Function PWMGetPinDuty:UInt(pin:UInt) = "bmx_embedded_pwm_get_pin_duty"
+	Function PWMSetPinPolarity:Int(pin:UInt, inverted:Int) = "bmx_embedded_pwm_set_pin_polarity"
+	Function PWMGetPinPolarity:Int(pin:UInt) = "bmx_embedded_pwm_get_pin_polarity"
+	Function PWMSetPinEnabled:Int(pin:UInt, enabled:Int) = "bmx_embedded_pwm_set_pin_enabled"
+	Function PWMGetPinEnabled:Int(pin:UInt) = "bmx_embedded_pwm_get_pin_enabled"
+
 	Function PWMInitGPIO:UInt(pin:UInt) = "bmx_pico_pwm_init_gpio"
 	Function PWMSliceForGPIO:UInt(pin:UInt) = "bmx_pico_pwm_slice_for_gpio"
 	Function PWMChannelForGPIO:UInt(pin:UInt) = "bmx_pico_pwm_channel_for_gpio"

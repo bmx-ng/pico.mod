@@ -2,6 +2,9 @@
 #define BLITZMAX_PICO_RUNTIME_H
 
 #include "blitzmax/embedded_runtime.h"
+#include "blitzmax/embedded_events.h"
+#include "blitzmax/embedded_uart.h"
+#include "blitzmax/embedded_system.h"
 
 /* Binary-compatible with Pub.Time.SDateTime. Pico.System.Calendar keeps the
    native shape here without introducing a module dependency cycle. */
@@ -93,16 +96,38 @@ void bmx_pico_gpio_set_slew_rate(uint32_t gpio, int32_t slew_rate);
 int32_t bmx_pico_gpio_get_slew_rate(uint32_t gpio);
 void bmx_pico_gpio_set_drive_strength(uint32_t gpio, int32_t drive_strength);
 int32_t bmx_pico_gpio_get_drive_strength(uint32_t gpio);
+int32_t bmx_embedded_gpio_is_valid(uint32_t gpio);
+int32_t bmx_embedded_gpio_is_output_capable(uint32_t gpio);
+int32_t bmx_embedded_gpio_is_pull_capable(uint32_t gpio);
+int32_t bmx_embedded_gpio_init(uint32_t gpio);
+int32_t bmx_embedded_gpio_set_direction(uint32_t gpio, int32_t direction);
+int32_t bmx_embedded_gpio_get_direction(uint32_t gpio);
+int32_t bmx_embedded_gpio_set_input(uint32_t gpio);
+int32_t bmx_embedded_gpio_set_output(uint32_t gpio);
+int32_t bmx_embedded_gpio_get(uint32_t gpio);
+int32_t bmx_embedded_gpio_put(uint32_t gpio, int32_t value);
+int32_t bmx_embedded_gpio_get_output(uint32_t gpio);
+int32_t bmx_embedded_gpio_set_pulls(uint32_t gpio, int32_t pull_up, int32_t pull_down);
+int32_t bmx_embedded_gpio_pull_up(uint32_t gpio);
+int32_t bmx_embedded_gpio_pull_down(uint32_t gpio);
+int32_t bmx_embedded_gpio_disable_pulls(uint32_t gpio);
+int32_t bmx_embedded_gpio_is_pulled_up(uint32_t gpio);
+int32_t bmx_embedded_gpio_is_pulled_down(uint32_t gpio);
+int32_t bmx_embedded_gpio_set_drive_strength(uint32_t gpio, int32_t drive_strength);
+int32_t bmx_embedded_gpio_get_drive_strength(uint32_t gpio);
 int32_t bmx_pico_gpio_set_irq_enabled(uint32_t gpio, uint32_t event_mask, int32_t enabled);
 int32_t bmx_pico_gpio_set_event_token(uint32_t gpio, uint32_t token);
 uint32_t bmx_pico_gpio_pending_irq_events(uint32_t gpio);
 uint32_t bmx_pico_gpio_take_irq_events(uint32_t gpio);
 
-int32_t bmx_embedded_millisecs(void);
 uint64_t bmx_pico_time_microseconds(void);
 uint32_t bmx_pico_system_clock_hz(void);
 uint64_t bmx_pico_time_milliseconds(void);
 void bmx_pico_sleep_us(uint64_t microseconds);
+uint64_t bmx_embedded_time_microseconds(void);
+uint64_t bmx_embedded_time_milliseconds(void);
+void bmx_embedded_sleep_milliseconds(uint32_t milliseconds);
+void bmx_embedded_sleep_microseconds(uint64_t microseconds);
 uint32_t bmx_pico_power_capabilities(void);
 void bmx_pico_power_idle(void);
 int32_t bmx_pico_power_sleep_until_interrupt(void);

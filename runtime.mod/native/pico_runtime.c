@@ -3,6 +3,11 @@
 #include <string.h>
 
 #include "blitzmax/pico_runtime.h"
+#include "blitzmax/embedded_adc.h"
+#include "blitzmax/embedded_device.h"
+#include "blitzmax/embedded_pwm.h"
+#include "blitzmax/embedded_random.h"
+#include "blitzmax/embedded_watchdog.h"
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
@@ -21,6 +26,7 @@
 #include "pico/aon_timer.h"
 #include "pico/flash.h"
 #include "pico/platform/sections.h"
+#include "pico/rand.h"
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
 
@@ -57,6 +63,27 @@
 #endif
 
 #define BMX_EMBEDDED_MEMORY_ALIGNMENT 16u
+
+uint32_t bmx_embedded_random_uint32(void) {
+    return get_rand_32();
+}
+
+uint64_t bmx_embedded_random_uint64(void) {
+    return get_rand_64();
+}
+
+int32_t bmx_embedded_random_fill(void *buffer, int32_t length) {
+    if (length < 0 || (length && !buffer)) return 0;
+    uint8_t *destination = (uint8_t *)buffer;
+    while (length > 0) {
+        uint32_t value = get_rand_32();
+        int32_t chunk = length < (int32_t)sizeof(value) ? length : (int32_t)sizeof(value);
+        memcpy(destination, &value, (size_t)chunk);
+        destination += chunk;
+        length -= chunk;
+    }
+    return 1;
+}
 
 _Static_assert(BMX_PICO_ALARM_CAPACITY > 0u && BMX_PICO_ALARM_CAPACITY <= 255u,
     "Pico alarm handles reserve one byte for the slot number");
@@ -145,14 +172,18 @@ uint32_t bmx_pico_watchdog_maximum_delay_ms(void) {
 #endif
 }
 
+static int32_t bmx_pico_watchdog_enabled;
+
 int32_t bmx_pico_watchdog_enable(uint32_t delay_ms, int32_t pause_on_debug) {
     if (!delay_ms || delay_ms > bmx_pico_watchdog_maximum_delay_ms()) return 0;
     watchdog_enable(delay_ms, pause_on_debug != 0);
+    bmx_pico_watchdog_enabled = 1;
     return 1;
 }
 
 void bmx_pico_watchdog_disable(void) {
     watchdog_disable();
+    bmx_pico_watchdog_enabled = 0;
 }
 
 void bmx_pico_watchdog_feed(void) {
@@ -181,6 +212,33 @@ int32_t bmx_pico_watchdog_reboot(uint32_t delay_ms) {
     return 1;
 }
 
+uint32_t bmx_embedded_watchdog_maximum_delay_ms(void) {
+    return bmx_pico_watchdog_maximum_delay_ms();
+}
+
+int32_t bmx_embedded_watchdog_enable(uint32_t delay_ms) {
+    return bmx_pico_watchdog_enable(delay_ms, 1);
+}
+
+int32_t bmx_embedded_watchdog_disable(void) {
+    bmx_pico_watchdog_disable();
+    return 1;
+}
+
+int32_t bmx_embedded_watchdog_feed(void) {
+    if (!bmx_pico_watchdog_enabled) return 0;
+    bmx_pico_watchdog_feed();
+    return 1;
+}
+
+int32_t bmx_embedded_watchdog_is_enabled(void) {
+    return bmx_pico_watchdog_enabled;
+}
+
+int32_t bmx_embedded_watchdog_caused_reboot(void) {
+    return bmx_pico_watchdog_caused_reboot();
+}
+
 const BMXEmbeddedString *bmx_pico_unique_board_id(void) {
     char identifier[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2u + 1u];
     pico_get_unique_board_id_string(identifier, sizeof(identifier));
@@ -196,6 +254,19 @@ BMXEmbeddedArray *bmx_pico_unique_board_id_bytes(void) {
         memcpy(bmx_embedded_array_data(result), identifier.id, PICO_UNIQUE_BOARD_ID_SIZE_BYTES);
     }
     return result;
+}
+
+const BMXEmbeddedString *bmx_embedded_unique_device_id(void) {
+    return bmx_pico_unique_board_id();
+}
+
+BMXEmbeddedArray *bmx_embedded_unique_device_id_bytes(void) {
+    return bmx_pico_unique_board_id_bytes();
+}
+
+int32_t bmx_embedded_device_reset_reason(void) {
+    return watchdog_caused_reboot() ? BMX_EMBEDDED_RESET_REASON_WATCHDOG :
+        BMX_EMBEDDED_RESET_REASON_UNKNOWN;
 }
 
 #define BMX_PICO_BOOTSEL_CS_PIN_INDEX 1u
@@ -225,6 +296,10 @@ int32_t __no_inline_not_in_flash_func(bmx_pico_bootsel_button_pressed)(void) {
 
 int32_t bmx_pico_device_reboot(uint32_t delay_ms) {
     return bmx_pico_watchdog_reboot(delay_ms);
+}
+
+int32_t bmx_embedded_device_reboot(uint32_t delay_ms) {
+    return bmx_pico_device_reboot(delay_ms);
 }
 
 int32_t bmx_pico_device_reboot_to_bootsel(int32_t activity_pin, int32_t activity_pin_active_low,
@@ -431,6 +506,101 @@ int32_t bmx_pico_gpio_get_drive_strength(uint32_t gpio) {
     return (int32_t)gpio_get_drive_strength(gpio);
 }
 
+int32_t bmx_embedded_gpio_is_valid(uint32_t gpio) {
+    return gpio < NUM_BANK0_GPIOS;
+}
+
+int32_t bmx_embedded_gpio_is_output_capable(uint32_t gpio) {
+    return bmx_embedded_gpio_is_valid(gpio);
+}
+
+int32_t bmx_embedded_gpio_is_pull_capable(uint32_t gpio) {
+    return bmx_embedded_gpio_is_valid(gpio);
+}
+
+int32_t bmx_embedded_gpio_init(uint32_t gpio) {
+    if (!bmx_embedded_gpio_is_valid(gpio)) return 0;
+    bmx_pico_gpio_init(gpio);
+    bmx_pico_gpio_put(gpio, 0);
+    bmx_pico_gpio_disable_pulls(gpio);
+    bmx_pico_gpio_set_input(gpio);
+    return 1;
+}
+
+int32_t bmx_embedded_gpio_set_direction(uint32_t gpio, int32_t direction) {
+    if (!bmx_embedded_gpio_is_valid(gpio) || (direction != 0 && direction != 1)) return 0;
+    bmx_pico_gpio_set_direction(gpio, direction);
+    return 1;
+}
+
+int32_t bmx_embedded_gpio_get_direction(uint32_t gpio) {
+    if (!bmx_embedded_gpio_is_valid(gpio)) return 0;
+    return bmx_pico_gpio_get_direction(gpio);
+}
+
+int32_t bmx_embedded_gpio_set_input(uint32_t gpio) {
+    return bmx_embedded_gpio_set_direction(gpio, 0);
+}
+
+int32_t bmx_embedded_gpio_set_output(uint32_t gpio) {
+    return bmx_embedded_gpio_set_direction(gpio, 1);
+}
+
+int32_t bmx_embedded_gpio_get(uint32_t gpio) {
+    if (!bmx_embedded_gpio_is_valid(gpio)) return 0;
+    return bmx_pico_gpio_get(gpio);
+}
+
+int32_t bmx_embedded_gpio_put(uint32_t gpio, int32_t value) {
+    if (!bmx_embedded_gpio_is_output_capable(gpio)) return 0;
+    bmx_pico_gpio_put(gpio, value);
+    return 1;
+}
+
+int32_t bmx_embedded_gpio_get_output(uint32_t gpio) {
+    if (!bmx_embedded_gpio_is_output_capable(gpio)) return 0;
+    return bmx_pico_gpio_get_output(gpio);
+}
+
+int32_t bmx_embedded_gpio_set_pulls(uint32_t gpio, int32_t pull_up, int32_t pull_down) {
+    if (!bmx_embedded_gpio_is_pull_capable(gpio)) return 0;
+    bmx_pico_gpio_set_pulls(gpio, pull_up, pull_down);
+    return 1;
+}
+
+int32_t bmx_embedded_gpio_pull_up(uint32_t gpio) {
+    return bmx_embedded_gpio_set_pulls(gpio, 1, 0);
+}
+
+int32_t bmx_embedded_gpio_pull_down(uint32_t gpio) {
+    return bmx_embedded_gpio_set_pulls(gpio, 0, 1);
+}
+
+int32_t bmx_embedded_gpio_disable_pulls(uint32_t gpio) {
+    return bmx_embedded_gpio_set_pulls(gpio, 0, 0);
+}
+
+int32_t bmx_embedded_gpio_is_pulled_up(uint32_t gpio) {
+    if (!bmx_embedded_gpio_is_valid(gpio)) return 0;
+    return bmx_pico_gpio_is_pulled_up(gpio);
+}
+
+int32_t bmx_embedded_gpio_is_pulled_down(uint32_t gpio) {
+    if (!bmx_embedded_gpio_is_valid(gpio)) return 0;
+    return bmx_pico_gpio_is_pulled_down(gpio);
+}
+
+int32_t bmx_embedded_gpio_set_drive_strength(uint32_t gpio, int32_t drive_strength) {
+    if (!bmx_embedded_gpio_is_output_capable(gpio) || drive_strength < 0 || drive_strength > 3) return 0;
+    bmx_pico_gpio_set_drive_strength(gpio, drive_strength);
+    return 1;
+}
+
+int32_t bmx_embedded_gpio_get_drive_strength(uint32_t gpio) {
+    if (!bmx_embedded_gpio_is_output_capable(gpio)) return 0;
+    return bmx_pico_gpio_get_drive_strength(gpio);
+}
+
 static volatile uint32_t bmx_pico_gpio_irq_events[NUM_BANK0_GPIOS];
 static volatile uint32_t bmx_pico_gpio_event_tokens[NUM_BANK0_GPIOS];
 static int bmx_pico_gpio_irq_callback_installed;
@@ -483,6 +653,23 @@ uint32_t bmx_pico_gpio_take_irq_events(uint32_t gpio) {
     return events;
 }
 
+int32_t bmx_embedded_gpio_set_irq_enabled(uint32_t gpio,
+        uint32_t event_mask, int32_t enabled) {
+    return bmx_pico_gpio_set_irq_enabled(gpio, event_mask, enabled);
+}
+
+int32_t bmx_embedded_gpio_set_event_token(uint32_t gpio, uint32_t token) {
+    return bmx_pico_gpio_set_event_token(gpio, token);
+}
+
+uint32_t bmx_embedded_gpio_pending_irq_events(uint32_t gpio) {
+    return bmx_pico_gpio_pending_irq_events(gpio);
+}
+
+uint32_t bmx_embedded_gpio_take_irq_events(uint32_t gpio) {
+    return bmx_pico_gpio_take_irq_events(gpio);
+}
+
 int32_t bmx_pico_putchar_raw(int32_t character) {
     return stdio_putchar_raw(character);
 }
@@ -509,6 +696,22 @@ uint64_t bmx_pico_time_milliseconds(void) {
 
 void bmx_pico_sleep_us(uint64_t microseconds) {
     sleep_us(microseconds);
+}
+
+uint64_t bmx_embedded_time_microseconds(void) {
+    return bmx_pico_time_microseconds();
+}
+
+uint64_t bmx_embedded_time_milliseconds(void) {
+    return bmx_pico_time_milliseconds();
+}
+
+void bmx_embedded_sleep_milliseconds(uint32_t milliseconds) {
+    bmx_pico_sleep_ms(milliseconds);
+}
+
+void bmx_embedded_sleep_microseconds(uint64_t microseconds) {
+    bmx_pico_sleep_us(microseconds);
 }
 
 enum {
@@ -1022,6 +1225,192 @@ uint32_t bmx_pico_pwm_take_wrap_events(uint32_t slice) {
     return events;
 }
 
+static uint8_t bmx_pico_embedded_pwm_configured[NUM_BANK0_GPIOS];
+static uint8_t bmx_pico_embedded_pwm_enabled[NUM_BANK0_GPIOS];
+static uint8_t bmx_pico_embedded_pwm_inverted[NUM_BANK0_GPIOS];
+static uint16_t bmx_pico_embedded_pwm_duty[NUM_BANK0_GPIOS];
+static uint8_t bmx_pico_embedded_pwm_channel_used[NUM_PWM_SLICES][2];
+static uint8_t bmx_pico_embedded_pwm_channel_pin[NUM_PWM_SLICES][2];
+static uint32_t bmx_pico_embedded_pwm_requested_frequency[NUM_PWM_SLICES];
+static uint32_t bmx_pico_embedded_pwm_frequency[NUM_PWM_SLICES];
+
+int32_t bmx_embedded_pwm_is_valid_pin(uint32_t gpio) {
+    return gpio < NUM_BANK0_GPIOS;
+}
+
+static int32_t bmx_pico_embedded_pwm_other_channel_used(uint32_t slice,
+        uint32_t channel) {
+    return bmx_pico_embedded_pwm_channel_used[slice][channel ^ 1u] != 0;
+}
+
+static void bmx_pico_embedded_pwm_apply_polarity(uint32_t slice) {
+    int32_t invert_a = 0;
+    int32_t invert_b = 0;
+    if (bmx_pico_embedded_pwm_channel_used[slice][0]) {
+        uint32_t pin = bmx_pico_embedded_pwm_channel_pin[slice][0];
+        invert_a = bmx_pico_embedded_pwm_inverted[pin] != 0;
+    }
+    if (bmx_pico_embedded_pwm_channel_used[slice][1]) {
+        uint32_t pin = bmx_pico_embedded_pwm_channel_pin[slice][1];
+        invert_b = bmx_pico_embedded_pwm_inverted[pin] != 0;
+    }
+    pwm_set_output_polarity(slice, invert_a, invert_b);
+}
+
+static void bmx_pico_embedded_pwm_apply_duty(uint32_t gpio) {
+    uint32_t slice = pwm_gpio_to_slice_num(gpio);
+    uint32_t wrap_plus_one = bmx_pico_pwm_get_wrap(slice) + 1u;
+    uint32_t level = 0;
+    if (bmx_pico_embedded_pwm_enabled[gpio]) {
+        level = (uint32_t)(((uint64_t)bmx_pico_embedded_pwm_duty[gpio] *
+            wrap_plus_one + BMX_EMBEDDED_PWM_DUTY_MAXIMUM / 2u) /
+            BMX_EMBEDDED_PWM_DUTY_MAXIMUM);
+        if (level > UINT16_MAX) level = UINT16_MAX;
+    }
+    pwm_set_gpio_level(gpio, (uint16_t)level);
+}
+
+static void bmx_pico_embedded_pwm_update_slice_enabled(uint32_t slice) {
+    int32_t enabled = 0;
+    for (uint32_t channel = 0; channel < 2; ++channel) {
+        if (bmx_pico_embedded_pwm_channel_used[slice][channel]) {
+            uint32_t pin = bmx_pico_embedded_pwm_channel_pin[slice][channel];
+            if (bmx_pico_embedded_pwm_enabled[pin]) enabled = 1;
+        }
+    }
+    pwm_set_enabled(slice, enabled != 0);
+}
+
+uint32_t bmx_embedded_pwm_init_pin(uint32_t gpio, uint32_t frequency,
+        uint32_t duty, int32_t inverted) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) || !frequency ||
+            duty > BMX_EMBEDDED_PWM_DUTY_MAXIMUM) return 0;
+    uint32_t slice = pwm_gpio_to_slice_num(gpio);
+    uint32_t channel = pwm_gpio_to_channel(gpio);
+    if (bmx_pico_embedded_pwm_configured[gpio]) {
+        if (!bmx_embedded_pwm_set_pin_frequency(gpio, frequency) ||
+                !bmx_embedded_pwm_set_pin_polarity(gpio, inverted) ||
+                !bmx_embedded_pwm_set_pin_duty(gpio, duty) ||
+                !bmx_embedded_pwm_set_pin_enabled(gpio, 1)) return 0;
+        return bmx_pico_embedded_pwm_frequency[slice];
+    }
+    if (bmx_pico_embedded_pwm_channel_used[slice][channel]) return 0;
+    if (bmx_pico_embedded_pwm_other_channel_used(slice, channel) &&
+            bmx_pico_embedded_pwm_requested_frequency[slice] != frequency) return 0;
+    uint32_t achieved = bmx_pico_embedded_pwm_frequency[slice];
+    if (!achieved) {
+        achieved = bmx_pico_pwm_set_frequency(slice, frequency);
+        if (!achieved) return 0;
+        bmx_pico_embedded_pwm_requested_frequency[slice] = frequency;
+        bmx_pico_embedded_pwm_frequency[slice] = achieved;
+    }
+    gpio_set_function(gpio, GPIO_FUNC_PWM);
+    bmx_pico_embedded_pwm_configured[gpio] = 1;
+    bmx_pico_embedded_pwm_enabled[gpio] = 1;
+    bmx_pico_embedded_pwm_inverted[gpio] = inverted != 0;
+    bmx_pico_embedded_pwm_duty[gpio] = (uint16_t)duty;
+    bmx_pico_embedded_pwm_channel_used[slice][channel] = 1;
+    bmx_pico_embedded_pwm_channel_pin[slice][channel] = (uint8_t)gpio;
+    bmx_pico_embedded_pwm_apply_polarity(slice);
+    bmx_pico_embedded_pwm_apply_duty(gpio);
+    bmx_pico_embedded_pwm_update_slice_enabled(slice);
+    return achieved;
+}
+
+int32_t bmx_embedded_pwm_deinit_pin(uint32_t gpio) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    uint32_t slice = pwm_gpio_to_slice_num(gpio);
+    uint32_t channel = pwm_gpio_to_channel(gpio);
+    pwm_set_gpio_level(gpio, 0);
+    bmx_pico_embedded_pwm_configured[gpio] = 0;
+    bmx_pico_embedded_pwm_enabled[gpio] = 0;
+    bmx_pico_embedded_pwm_inverted[gpio] = 0;
+    bmx_pico_embedded_pwm_duty[gpio] = 0;
+    bmx_pico_embedded_pwm_channel_used[slice][channel] = 0;
+    bmx_pico_embedded_pwm_apply_polarity(slice);
+    bmx_pico_embedded_pwm_update_slice_enabled(slice);
+    if (!bmx_pico_embedded_pwm_channel_used[slice][0] &&
+            !bmx_pico_embedded_pwm_channel_used[slice][1]) {
+        bmx_pico_embedded_pwm_frequency[slice] = 0;
+        bmx_pico_embedded_pwm_requested_frequency[slice] = 0;
+    }
+    gpio_init(gpio);
+    return 1;
+}
+
+uint32_t bmx_embedded_pwm_set_pin_frequency(uint32_t gpio, uint32_t frequency) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) || !frequency ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    uint32_t slice = pwm_gpio_to_slice_num(gpio);
+    uint32_t channel = pwm_gpio_to_channel(gpio);
+    if (bmx_pico_embedded_pwm_other_channel_used(slice, channel) &&
+            bmx_pico_embedded_pwm_requested_frequency[slice] != frequency) return 0;
+    if (bmx_pico_embedded_pwm_requested_frequency[slice] == frequency)
+        return bmx_pico_embedded_pwm_frequency[slice];
+    uint32_t achieved = bmx_pico_pwm_set_frequency(slice, frequency);
+    if (!achieved) return 0;
+    bmx_pico_embedded_pwm_requested_frequency[slice] = frequency;
+    bmx_pico_embedded_pwm_frequency[slice] = achieved;
+    for (uint32_t candidate = 0; candidate < 2; ++candidate) {
+        if (bmx_pico_embedded_pwm_channel_used[slice][candidate]) {
+            bmx_pico_embedded_pwm_apply_duty(
+                bmx_pico_embedded_pwm_channel_pin[slice][candidate]);
+        }
+    }
+    return achieved;
+}
+
+uint32_t bmx_embedded_pwm_get_pin_frequency(uint32_t gpio) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    return bmx_pico_embedded_pwm_frequency[pwm_gpio_to_slice_num(gpio)];
+}
+
+int32_t bmx_embedded_pwm_set_pin_duty(uint32_t gpio, uint32_t duty) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio] ||
+            duty > BMX_EMBEDDED_PWM_DUTY_MAXIMUM) return 0;
+    bmx_pico_embedded_pwm_duty[gpio] = (uint16_t)duty;
+    bmx_pico_embedded_pwm_apply_duty(gpio);
+    return 1;
+}
+
+uint32_t bmx_embedded_pwm_get_pin_duty(uint32_t gpio) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    return bmx_pico_embedded_pwm_duty[gpio];
+}
+
+int32_t bmx_embedded_pwm_set_pin_polarity(uint32_t gpio, int32_t inverted) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    bmx_pico_embedded_pwm_inverted[gpio] = inverted != 0;
+    bmx_pico_embedded_pwm_apply_polarity(pwm_gpio_to_slice_num(gpio));
+    return 1;
+}
+
+int32_t bmx_embedded_pwm_get_pin_polarity(uint32_t gpio) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    return bmx_pico_embedded_pwm_inverted[gpio] != 0;
+}
+
+int32_t bmx_embedded_pwm_set_pin_enabled(uint32_t gpio, int32_t enabled) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    bmx_pico_embedded_pwm_enabled[gpio] = enabled != 0;
+    bmx_pico_embedded_pwm_apply_duty(gpio);
+    bmx_pico_embedded_pwm_update_slice_enabled(pwm_gpio_to_slice_num(gpio));
+    return 1;
+}
+
+int32_t bmx_embedded_pwm_get_pin_enabled(uint32_t gpio) {
+    if (!bmx_embedded_pwm_is_valid_pin(gpio) ||
+            !bmx_pico_embedded_pwm_configured[gpio]) return 0;
+    return bmx_pico_embedded_pwm_enabled[gpio] != 0;
+}
+
 void bmx_pico_adc_init(void) {
     adc_init();
 }
@@ -1100,6 +1489,44 @@ void *bmx_pico_adc_fifo_address(void) {
 
 uint32_t bmx_pico_adc_dreq(void) {
     return DREQ_ADC;
+}
+
+static uint64_t bmx_pico_embedded_adc_pins;
+
+int32_t bmx_embedded_adc_is_valid_pin(uint32_t gpio) {
+    return gpio < 64u && bmx_pico_adc_input_for_gpio(gpio) >= 0;
+}
+
+int32_t bmx_embedded_adc_init_pin(uint32_t gpio) {
+    if (!bmx_embedded_adc_is_valid_pin(gpio)) return 0;
+    adc_init();
+    adc_gpio_init(gpio);
+    bmx_pico_embedded_adc_pins |= UINT64_C(1) << gpio;
+    return 1;
+}
+
+int32_t bmx_embedded_adc_deinit_pin(uint32_t gpio) {
+    if (!bmx_embedded_adc_is_valid_pin(gpio) ||
+            !(bmx_pico_embedded_adc_pins & (UINT64_C(1) << gpio))) return 0;
+    bmx_pico_embedded_adc_pins &= ~(UINT64_C(1) << gpio);
+    gpio_init(gpio);
+    return 1;
+}
+
+int32_t bmx_embedded_adc_read_raw(uint32_t gpio, uint32_t *value) {
+    if (!value || !bmx_embedded_adc_is_valid_pin(gpio) ||
+            !(bmx_pico_embedded_adc_pins & (UINT64_C(1) << gpio))) return 0;
+    adc_select_input((uint32_t)bmx_pico_adc_input_for_gpio(gpio));
+    *value = adc_read();
+    return 1;
+}
+
+uint32_t bmx_embedded_adc_resolution_bits(uint32_t gpio) {
+    return bmx_embedded_adc_is_valid_pin(gpio) ? 12u : 0u;
+}
+
+uint32_t bmx_embedded_adc_maximum_value(uint32_t gpio) {
+    return bmx_embedded_adc_is_valid_pin(gpio) ? 0xfffu : 0u;
 }
 
 static i2c_inst_t *bmx_pico_i2c_instance(int32_t controller) {
@@ -1417,6 +1844,172 @@ uint32_t bmx_pico_spi_rx_dreq(int32_t controller) {
     return spi ? spi_get_dreq(spi, false) : UINT32_MAX;
 }
 
+/* Portable I2C master ABI. Pico-specific slave/FIFO operations remain above. */
+int32_t bmx_embedded_i2c_controller_count(void) {
+    return NUM_I2CS;
+}
+
+int32_t bmx_embedded_i2c_default_controller(void) {
+    return bmx_pico_i2c_default_controller();
+}
+
+uint32_t bmx_embedded_i2c_default_sda_pin(void) {
+    return bmx_pico_i2c_default_sda_pin();
+}
+
+uint32_t bmx_embedded_i2c_default_scl_pin(void) {
+    return bmx_pico_i2c_default_scl_pin();
+}
+
+int32_t bmx_embedded_i2c_configure_pins(int32_t controller, uint32_t sda_pin,
+        uint32_t scl_pin, int32_t pull_ups) {
+    return bmx_pico_i2c_configure_pins(controller, sda_pin, scl_pin, pull_ups);
+}
+
+uint32_t bmx_embedded_i2c_init(int32_t controller, uint32_t baudrate) {
+    return bmx_pico_i2c_init(controller, baudrate);
+}
+
+int32_t bmx_embedded_i2c_deinit(int32_t controller) {
+    if (!bmx_pico_i2c_instance(controller)) return 0;
+    bmx_pico_i2c_deinit(controller);
+    return 1;
+}
+
+uint32_t bmx_embedded_i2c_set_baudrate(int32_t controller, uint32_t baudrate) {
+    return bmx_pico_i2c_set_baudrate(controller, baudrate);
+}
+
+int32_t bmx_embedded_i2c_write_blocking(int32_t controller, uint32_t address,
+        void *data, int32_t length) {
+    return bmx_pico_i2c_write_blocking(controller, address, data, length, 0);
+}
+
+int32_t bmx_embedded_i2c_read_blocking(int32_t controller, uint32_t address,
+        void *data, int32_t length) {
+    return bmx_pico_i2c_read_blocking(controller, address, data, length, 0);
+}
+
+int32_t bmx_embedded_i2c_write_timeout_us(int32_t controller, uint32_t address,
+        void *data, int32_t length, uint32_t timeout_us) {
+    return bmx_pico_i2c_write_timeout_us(controller, address, data, length, 0, timeout_us);
+}
+
+int32_t bmx_embedded_i2c_read_timeout_us(int32_t controller, uint32_t address,
+        void *data, int32_t length, uint32_t timeout_us) {
+    return bmx_pico_i2c_read_timeout_us(controller, address, data, length, 0, timeout_us);
+}
+
+static int32_t bmx_pico_i2c_write_read_until(int32_t controller, uint32_t address,
+        void *write_data, int32_t write_length, void *read_data, int32_t read_length,
+        absolute_time_t until) {
+    i2c_inst_t *i2c = bmx_pico_i2c_instance(controller);
+    if (!bmx_pico_i2c_transfer_valid(i2c, address, write_data, write_length) ||
+            !bmx_pico_i2c_transfer_valid(i2c, address, read_data, read_length) ||
+            !write_length || !read_length) return PICO_ERROR_INVALID_ARG;
+    int32_t result = i2c_write_blocking_until(i2c, (uint8_t)address,
+        (const uint8_t *)write_data, (size_t)write_length, true, until);
+    if (result != write_length) return result;
+    return i2c_read_blocking_until(i2c, (uint8_t)address, (uint8_t *)read_data,
+        (size_t)read_length, false, until);
+}
+
+int32_t bmx_embedded_i2c_write_read_blocking(int32_t controller, uint32_t address,
+        void *write_data, int32_t write_length, void *read_data, int32_t read_length) {
+    return bmx_pico_i2c_write_read_until(controller, address, write_data, write_length,
+        read_data, read_length, at_the_end_of_time);
+}
+
+int32_t bmx_embedded_i2c_write_read_timeout_us(int32_t controller, uint32_t address,
+        void *write_data, int32_t write_length, void *read_data, int32_t read_length,
+        uint32_t timeout_us) {
+    return bmx_pico_i2c_write_read_until(controller, address, write_data, write_length,
+        read_data, read_length, make_timeout_time_us(timeout_us));
+}
+
+/* Portable SPI ABI. Pico peripheral-mode and DMA details remain target-specific. */
+int32_t bmx_embedded_spi_controller_count(void) {
+    return NUM_SPIS;
+}
+
+int32_t bmx_embedded_spi_default_controller(void) {
+    return bmx_pico_spi_default_controller();
+}
+
+uint32_t bmx_embedded_spi_default_rx_pin(void) {
+    return bmx_pico_spi_default_rx_pin();
+}
+
+uint32_t bmx_embedded_spi_default_tx_pin(void) {
+    return bmx_pico_spi_default_tx_pin();
+}
+
+uint32_t bmx_embedded_spi_default_sck_pin(void) {
+    return bmx_pico_spi_default_sck_pin();
+}
+
+uint32_t bmx_embedded_spi_default_csn_pin(void) {
+    return bmx_pico_spi_default_csn_pin();
+}
+
+int32_t bmx_embedded_spi_configure_pins(int32_t controller, uint32_t rx_pin,
+        uint32_t tx_pin, uint32_t sck_pin) {
+    return bmx_pico_spi_configure_pins(controller, rx_pin, tx_pin, sck_pin);
+}
+
+uint32_t bmx_embedded_spi_init(int32_t controller, uint32_t baudrate) {
+    return bmx_pico_spi_init(controller, baudrate);
+}
+
+int32_t bmx_embedded_spi_deinit(int32_t controller) {
+    if (!bmx_pico_spi_instance(controller)) return 0;
+    bmx_pico_spi_deinit(controller);
+    return 1;
+}
+
+uint32_t bmx_embedded_spi_set_baudrate(int32_t controller, uint32_t baudrate) {
+    return bmx_pico_spi_set_baudrate(controller, baudrate);
+}
+
+uint32_t bmx_embedded_spi_get_baudrate(int32_t controller) {
+    return bmx_pico_spi_get_baudrate(controller);
+}
+
+int32_t bmx_embedded_spi_set_format(int32_t controller, uint32_t data_bits,
+        uint32_t polarity, uint32_t phase, uint32_t bit_order) {
+    if (data_bits != 8 && data_bits != 16) return 0;
+    return bmx_pico_spi_set_format(controller, data_bits, polarity, phase, bit_order);
+}
+
+int32_t bmx_embedded_spi_write_read_blocking(int32_t controller, void *source,
+        void *destination, int32_t length) {
+    return bmx_pico_spi_write_read_blocking(controller, source, destination, length);
+}
+
+int32_t bmx_embedded_spi_write_blocking(int32_t controller, void *source, int32_t length) {
+    return bmx_pico_spi_write_blocking(controller, source, length);
+}
+
+int32_t bmx_embedded_spi_read_blocking(int32_t controller, uint32_t repeated_data,
+        void *destination, int32_t length) {
+    return bmx_pico_spi_read_blocking(controller, repeated_data, destination, length);
+}
+
+int32_t bmx_embedded_spi_write16_read16_blocking(int32_t controller, uint16_t *source,
+        uint16_t *destination, int32_t length) {
+    return bmx_pico_spi_write16_read16_blocking(controller, source, destination, length);
+}
+
+int32_t bmx_embedded_spi_write16_blocking(int32_t controller, uint16_t *source,
+        int32_t length) {
+    return bmx_pico_spi_write16_blocking(controller, source, length);
+}
+
+int32_t bmx_embedded_spi_read16_blocking(int32_t controller, uint32_t repeated_data,
+        uint16_t *destination, int32_t length) {
+    return bmx_pico_spi_read16_blocking(controller, repeated_data, destination, length);
+}
+
 static uart_inst_t *bmx_pico_uart_instance(int32_t controller) {
     if (controller < 0 || controller >= NUM_UARTS) return NULL;
     return uart_get_instance((uint)controller);
@@ -1635,6 +2228,131 @@ void bmx_pico_uart_clear_errors(int32_t controller) {
     if (uart) uart_get_hw(uart)->rsr = 0xffffffffu;
 }
 
+int32_t bmx_embedded_uart_controller_count(void) {
+    return NUM_UARTS;
+}
+
+int32_t bmx_embedded_uart_default_controller(void) {
+    return bmx_pico_uart_default_controller();
+}
+
+uint32_t bmx_embedded_uart_default_baudrate(void) {
+    return bmx_pico_uart_default_baudrate();
+}
+
+int32_t bmx_embedded_uart_configure_pins(int32_t controller, uint32_t tx_pin,
+        uint32_t rx_pin) {
+    return bmx_pico_uart_configure_pins(controller, tx_pin, rx_pin);
+}
+
+int32_t bmx_embedded_uart_configure_flow_pins(int32_t controller,
+        uint32_t cts_pin, uint32_t rts_pin) {
+    return bmx_pico_uart_configure_flow_pins(controller, cts_pin, rts_pin);
+}
+
+uint32_t bmx_embedded_uart_init(int32_t controller, uint32_t baudrate) {
+    if (bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_init(controller, baudrate);
+}
+
+int32_t bmx_embedded_uart_deinit(int32_t controller) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    bmx_pico_uart_deinit(controller);
+    return 1;
+}
+
+uint32_t bmx_embedded_uart_set_baudrate(int32_t controller, uint32_t baudrate) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_set_baudrate(controller, baudrate);
+}
+
+int32_t bmx_embedded_uart_set_format(int32_t controller, uint32_t data_bits,
+        uint32_t stop_bits, uint32_t parity) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_set_format(controller, data_bits, stop_bits, parity);
+}
+
+int32_t bmx_embedded_uart_set_flow_control(int32_t controller, int32_t cts,
+        int32_t rts) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_set_flow_control(controller, cts, rts);
+}
+
+int32_t bmx_embedded_uart_is_enabled(int32_t controller) {
+    return bmx_pico_uart_is_enabled(controller);
+}
+
+int32_t bmx_embedded_uart_is_writable(int32_t controller) {
+    return bmx_pico_uart_is_writable(controller);
+}
+
+int32_t bmx_embedded_uart_is_readable(int32_t controller) {
+    return bmx_pico_uart_is_readable(controller);
+}
+
+int32_t bmx_embedded_uart_is_readable_within_us(int32_t controller,
+        uint32_t timeout_us) {
+    return bmx_pico_uart_is_readable_within_us(controller, timeout_us);
+}
+
+int32_t bmx_embedded_uart_write_blocking(int32_t controller,
+        const void *source, int32_t length) {
+    if (!bmx_pico_uart_is_enabled(controller)) return PICO_ERROR_INVALID_ARG;
+    return bmx_pico_uart_write_blocking(controller, (void *)source, length);
+}
+
+int32_t bmx_embedded_uart_read_blocking(int32_t controller,
+        void *destination, int32_t length) {
+    if (!bmx_pico_uart_is_enabled(controller)) return PICO_ERROR_INVALID_ARG;
+    return bmx_pico_uart_read_blocking(controller, destination, length);
+}
+
+int32_t bmx_embedded_uart_read_timeout_us(int32_t controller,
+        void *destination, int32_t length, uint32_t timeout_us) {
+    if (!bmx_pico_uart_is_enabled(controller)) return PICO_ERROR_INVALID_ARG;
+    return bmx_pico_uart_read_timeout_us(controller, destination, length,
+        timeout_us);
+}
+
+int32_t bmx_embedded_uart_read_available(int32_t controller,
+        void *destination, int32_t capacity) {
+    if (!bmx_pico_uart_is_enabled(controller)) return PICO_ERROR_INVALID_ARG;
+    return bmx_pico_uart_read_available(controller, destination, capacity);
+}
+
+int32_t bmx_embedded_uart_put_byte(int32_t controller, uint32_t value) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_put_byte(controller, value);
+}
+
+int32_t bmx_embedded_uart_tx_wait_blocking(int32_t controller) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    bmx_pico_uart_tx_wait_blocking(controller);
+    return 1;
+}
+
+int32_t bmx_embedded_uart_set_break(int32_t controller, int32_t enabled) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_set_break(controller, enabled);
+}
+
+int32_t bmx_embedded_uart_set_translate_crlf(int32_t controller,
+        int32_t enabled) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_set_translate_crlf(controller, enabled);
+}
+
+uint32_t bmx_embedded_uart_get_errors(int32_t controller) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    return bmx_pico_uart_get_errors(controller);
+}
+
+int32_t bmx_embedded_uart_clear_errors(int32_t controller) {
+    if (!bmx_pico_uart_is_enabled(controller)) return 0;
+    bmx_pico_uart_clear_errors(controller);
+    return 1;
+}
+
 typedef struct BMXPicoBufferedUART {
     uint8_t *rx_buffer;
     uint8_t *tx_buffer;
@@ -1828,6 +2546,47 @@ int32_t bmx_pico_uart_async_tx_idle(int32_t controller) {
     return !state->open ||
         (state->tx_put == state->tx_get &&
             !(uart_get_hw(uart)->fr & UART_UARTFR_BUSY_BITS));
+}
+
+int32_t bmx_embedded_uart_async_open(int32_t controller,
+        uint32_t rx_capacity, uint32_t tx_capacity, uint32_t rx_token,
+        uint32_t tx_token, uint32_t error_token) {
+    return bmx_pico_uart_async_open(controller, rx_capacity, tx_capacity,
+        rx_token, tx_token, error_token);
+}
+
+int32_t bmx_embedded_uart_async_close(int32_t controller) {
+    return bmx_pico_uart_async_close(controller);
+}
+
+int32_t bmx_embedded_uart_async_is_open(int32_t controller) {
+    return bmx_pico_uart_async_is_open(controller);
+}
+
+int32_t bmx_embedded_uart_async_read(int32_t controller, void *destination,
+        int32_t capacity) {
+    return bmx_pico_uart_async_read(controller, destination, capacity);
+}
+
+int32_t bmx_embedded_uart_async_write(int32_t controller,
+        const void *source, int32_t length) {
+    return bmx_pico_uart_async_write(controller, (void *)source, length);
+}
+
+uint32_t bmx_embedded_uart_async_read_available(int32_t controller) {
+    return bmx_pico_uart_async_read_available(controller);
+}
+
+uint32_t bmx_embedded_uart_async_write_available(int32_t controller) {
+    return bmx_pico_uart_async_write_available(controller);
+}
+
+uint32_t bmx_embedded_uart_async_rx_dropped(int32_t controller) {
+    return bmx_pico_uart_async_rx_dropped(controller);
+}
+
+int32_t bmx_embedded_uart_async_tx_idle(int32_t controller) {
+    return bmx_pico_uart_async_tx_idle(controller);
 }
 
 static PIO bmx_pico_pio_instance(int32_t controller) {
@@ -2617,19 +3376,18 @@ static volatile uint32_t bmx_pico_deferred_event_put;
 static volatile uint32_t bmx_pico_deferred_event_get;
 static volatile uint32_t bmx_pico_deferred_event_dropped;
 
-int32_t bmx_pico_event_post_from_irq(uint32_t token, uint32_t event_data,
+int32_t bmx_embedded_event_post(uint32_t token, uint32_t event_data,
         uint32_t detail) {
-    return bmx_pico_event_post_from_irq_ex(token, event_data, 0, detail, 0);
+    return bmx_embedded_event_post_ex(token, event_data, 0, detail, 0);
 }
 
-int32_t bmx_pico_event_post_from_irq_ex(uint32_t token, uint32_t event_data,
+static int32_t bmx_pico_event_post_locked(uint32_t token, uint32_t event_data,
         uint32_t event_mods, uint32_t event_x, uint32_t event_y) {
     if (!token) return 0;
     uint32_t put = bmx_pico_deferred_event_put;
     if (put - bmx_pico_deferred_event_get >= BMX_PICO_EVENT_CAPACITY) {
         if (bmx_pico_deferred_event_dropped != UINT32_MAX)
             ++bmx_pico_deferred_event_dropped;
-        __sev();
         return 0;
     }
     BMXPicoDeferredEvent *event = &bmx_pico_deferred_events[put & BMX_PICO_EVENT_MASK];
@@ -2640,11 +3398,36 @@ int32_t bmx_pico_event_post_from_irq_ex(uint32_t token, uint32_t event_data,
     event->event_y = event_y;
     __dmb();
     bmx_pico_deferred_event_put = put + 1u;
-    __sev();
     return 1;
 }
 
-int32_t bmx_pico_event_take(uint32_t *token, uint32_t *event_data,
+int32_t bmx_embedded_event_post_ex(uint32_t token, uint32_t event_data,
+        uint32_t event_mods, uint32_t event_x, uint32_t event_y) {
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    int32_t posted = bmx_pico_event_post_locked(token, event_data, event_mods,
+        event_x, event_y);
+    restore_interrupts(interrupt_state);
+    __sev();
+    return posted;
+}
+
+int32_t bmx_embedded_event_post_from_isr(uint32_t token,
+        uint32_t event_data, uint32_t detail) {
+    return bmx_embedded_event_post_from_isr_ex(token, event_data, 0, detail, 0);
+}
+
+int32_t bmx_embedded_event_post_from_isr_ex(uint32_t token,
+        uint32_t event_data, uint32_t event_mods, uint32_t event_x,
+        uint32_t event_y) {
+    uint32_t interrupt_state = save_and_disable_interrupts();
+    int32_t posted = bmx_pico_event_post_locked(token, event_data, event_mods,
+        event_x, event_y);
+    restore_interrupts(interrupt_state);
+    __sev();
+    return posted;
+}
+
+int32_t bmx_embedded_event_take(uint32_t *token, uint32_t *event_data,
         uint32_t *event_mods, uint32_t *event_x, uint32_t *event_y) {
     if (!token || !event_data || !event_mods || !event_x || !event_y ||
             get_core_num() != 0) return 0;
@@ -2665,15 +3448,40 @@ int32_t bmx_pico_event_take(uint32_t *token, uint32_t *event_data,
     return 1;
 }
 
-uint32_t bmx_pico_event_pending(void) {
+uint32_t bmx_embedded_event_pending(void) {
     uint32_t interrupt_state = save_and_disable_interrupts();
     uint32_t pending = bmx_pico_deferred_event_put - bmx_pico_deferred_event_get;
     restore_interrupts(interrupt_state);
     return pending;
 }
 
-uint32_t bmx_pico_event_dropped(void) {
+uint32_t bmx_embedded_event_dropped(void) {
     return bmx_pico_deferred_event_dropped;
+}
+
+int32_t bmx_pico_event_post_from_irq(uint32_t token, uint32_t event_data,
+        uint32_t detail) {
+    return bmx_embedded_event_post_from_isr(token, event_data, detail);
+}
+
+int32_t bmx_pico_event_post_from_irq_ex(uint32_t token, uint32_t event_data,
+        uint32_t event_mods, uint32_t event_x, uint32_t event_y) {
+    return bmx_embedded_event_post_from_isr_ex(token, event_data, event_mods,
+        event_x, event_y);
+}
+
+int32_t bmx_pico_event_take(uint32_t *token, uint32_t *event_data,
+        uint32_t *event_mods, uint32_t *event_x, uint32_t *event_y) {
+    return bmx_embedded_event_take(token, event_data, event_mods, event_x,
+        event_y);
+}
+
+uint32_t bmx_pico_event_pending(void) {
+    return bmx_embedded_event_pending();
+}
+
+uint32_t bmx_pico_event_dropped(void) {
+    return bmx_embedded_event_dropped();
 }
 
 static volatile uint32_t bmx_pico_dma_completion_events[2][NUM_DMA_CHANNELS];
@@ -2949,7 +3757,15 @@ void bmx_embedded_udelay(int32_t microseconds) {
     if (microseconds > 0) sleep_us((uint64_t)(uint32_t)microseconds);
 }
 
-void bmx_pico_system_wait(void) {
-    if (bmx_pico_event_pending()) return;
+void bmx_embedded_system_wait(void) {
+    if (bmx_embedded_event_pending()) return;
     __wfe();
+}
+
+void bmx_embedded_system_wake(void) {
+    __sev();
+}
+
+void bmx_pico_system_wait(void) {
+    bmx_embedded_system_wait();
 }

@@ -38,7 +38,19 @@ static bool bmx_pico_wifi_is_initialized;
 static bool bmx_pico_wifi_scan_requested;
 static int32_t bmx_pico_wifi_last_link_status;
 
-extern uint32_t bmx_pico_net_active_socket_count(void) __attribute__((weak));
+extern uint32_t bmx_embedded_net_active_socket_count(void) __attribute__((weak));
+
+static uint32_t bmx_pico_wifi_authentication(uint32_t authentication) {
+    switch (authentication) {
+        case 0: return CYW43_AUTH_OPEN;
+        case 1: return CYW43_AUTH_WPA_TKIP_PSK;
+        case 2: return CYW43_AUTH_WPA2_AES_PSK;
+        case 3: return CYW43_AUTH_WPA2_MIXED_PSK;
+        case 4: return CYW43_AUTH_WPA3_SAE_AES_PSK;
+        case 5: return CYW43_AUTH_WPA3_WPA2_AES_PSK;
+        default: return UINT32_MAX;
+    }
+}
 
 static uint32_t bmx_pico_wifi_pack_address(const ip4_addr_t *address) {
     return (uint32_t)ip4_addr1(address) |
@@ -81,7 +93,7 @@ static int bmx_pico_wifi_scan_callback(void *environment,
     return 0;
 }
 
-int32_t bmx_pico_wifi_initialize(uint32_t country) {
+int32_t bmx_embedded_wifi_initialize(uint32_t country) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     if (bmx_pico_wifi_is_initialized) return PICO_OK;
 
@@ -97,12 +109,13 @@ int32_t bmx_pico_wifi_initialize(uint32_t country) {
     return PICO_OK;
 }
 
-int32_t bmx_pico_wifi_deinitialize(void) {
+int32_t bmx_embedded_wifi_deinitialize(void) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     if (!bmx_pico_wifi_is_initialized) return PICO_OK;
     if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
         return PICO_ERROR_RESOURCE_IN_USE;
-    if (bmx_pico_net_active_socket_count && bmx_pico_net_active_socket_count())
+    if (bmx_embedded_net_active_socket_count &&
+            bmx_embedded_net_active_socket_count())
         return PICO_ERROR_RESOURCE_IN_USE;
     cyw43_arch_deinit();
     bmx_pico_wifi_is_initialized = false;
@@ -111,7 +124,7 @@ int32_t bmx_pico_wifi_deinitialize(void) {
     return PICO_OK;
 }
 
-int32_t bmx_pico_wifi_initialized(void) {
+int32_t bmx_embedded_wifi_initialized(void) {
     return bmx_pico_wifi_is_initialized;
 }
 
@@ -126,7 +139,7 @@ int32_t bmx_pico_wifi_get_led(void) {
     return cyw43_arch_gpio_get(CYW43_WL_GPIO_LED_PIN);
 }
 
-int32_t bmx_pico_wifi_start_scan(void) {
+int32_t bmx_embedded_wifi_start_scan(void) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     if (!bmx_pico_wifi_is_initialized) return PICO_ERROR_INVALID_STATE;
     if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
@@ -139,7 +152,7 @@ int32_t bmx_pico_wifi_start_scan(void) {
     return result;
 }
 
-int32_t bmx_pico_wifi_connect(const uint8_t *ssid, uint32_t ssid_length,
+int32_t bmx_embedded_wifi_connect(const uint8_t *ssid, uint32_t ssid_length,
         const uint8_t *password, uint32_t password_length, uint32_t authentication) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     if (!bmx_pico_wifi_is_initialized) return PICO_ERROR_INVALID_STATE;
@@ -147,7 +160,9 @@ int32_t bmx_pico_wifi_connect(const uint8_t *ssid, uint32_t ssid_length,
             (password_length && !password)) return PICO_ERROR_INVALID_ARG;
     if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
         return PICO_ERROR_RESOURCE_IN_USE;
-    if (!password_length) authentication = CYW43_AUTH_OPEN;
+    authentication = !password_length ? CYW43_AUTH_OPEN :
+        bmx_pico_wifi_authentication(authentication);
+    if (authentication == UINT32_MAX) return PICO_ERROR_INVALID_ARG;
     /* Match cyw43_ll_wifi_join's current limits exactly. In particular the
        transitional WPA3/WPA2 mode still uses the 64-byte WPA key path. */
     if ((authentication == CYW43_AUTH_WPA3_SAE_AES_PSK &&
@@ -160,18 +175,18 @@ int32_t bmx_pico_wifi_connect(const uint8_t *ssid, uint32_t ssid_length,
         password, authentication, NULL, CYW43_CHANNEL_NONE);
 }
 
-int32_t bmx_pico_wifi_disconnect(void) {
+int32_t bmx_embedded_wifi_disconnect(void) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     if (!bmx_pico_wifi_is_initialized) return PICO_ERROR_INVALID_STATE;
     return cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
 }
 
-int32_t bmx_pico_wifi_scan_active(void) {
+int32_t bmx_embedded_wifi_scan_active(void) {
     return bmx_pico_wifi_is_initialized &&
         (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state));
 }
 
-int32_t bmx_pico_wifi_link_status(void) {
+int32_t bmx_embedded_wifi_link_status(void) {
     if (!bmx_pico_wifi_is_initialized) return CYW43_LINK_DOWN;
     cyw43_arch_lwip_begin();
     int32_t status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
@@ -179,7 +194,7 @@ int32_t bmx_pico_wifi_link_status(void) {
     return status;
 }
 
-void bmx_pico_wifi_service(void) {
+void bmx_embedded_wifi_service(void) {
     if (!bmx_pico_wifi_is_initialized) return;
     if (bmx_pico_wifi_scan_requested && !cyw43_wifi_scan_active(&cyw43_state)) {
         BMXEmbeddedWiFiEvent event = {0};
@@ -202,7 +217,7 @@ void bmx_pico_wifi_service(void) {
         bmx_pico_wifi_last_link_status = link_event.link_status;
 }
 
-int32_t bmx_pico_wifi_take_event(int32_t *kind, uint8_t *ssid,
+int32_t bmx_embedded_wifi_take_event(int32_t *kind, uint8_t *ssid,
         int32_t *ssid_length, uint8_t *bssid, int32_t *channel,
         int32_t *rssi, int32_t *security, int32_t *link_status,
         uint32_t *address, uint32_t *netmask, uint32_t *gateway) {
@@ -244,18 +259,18 @@ static uint32_t bmx_pico_wifi_live_address(int selector) {
     return result;
 }
 
-uint32_t bmx_pico_wifi_ipv4_address(void) {
+uint32_t bmx_embedded_wifi_ipv4_address(void) {
     return bmx_pico_wifi_live_address(0);
 }
 
-uint32_t bmx_pico_wifi_ipv4_netmask(void) {
+uint32_t bmx_embedded_wifi_ipv4_netmask(void) {
     return bmx_pico_wifi_live_address(1);
 }
 
-uint32_t bmx_pico_wifi_ipv4_gateway(void) {
+uint32_t bmx_embedded_wifi_ipv4_gateway(void) {
     return bmx_pico_wifi_live_address(2);
 }
 
-uint32_t bmx_pico_wifi_dropped_events(void) {
+uint32_t bmx_embedded_wifi_dropped_events(void) {
     return bmx_pico_wifi_dropped_event_count;
 }

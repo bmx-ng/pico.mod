@@ -10,6 +10,7 @@ If Not LittleFSIsMounted() Then
 	Print "LittleFS mount failed: " + LittleFSLastError()
 Else
 	CreateDir("data/sub", True)
+	CreateDir("littlefs::explicit/sub", True)
 	Local output:TStream = OpenStream("data/sub/hello.txt", False, WRITE_MODE_APPEND)
 	If output Then
 		output.WriteLine("Persistent boot record")
@@ -21,6 +22,8 @@ Else
 		Print input.ReadLine()
 		input.Close()
 	End If
+	Local explicitInfo:SFileStat
+	FileStat("littlefs::data/sub/hello.txt", explicitInfo)
 
 	For Local path:String = EachIn Glob("data/**/*.txt", EGlobOptions.GlobStar)
 		Print path

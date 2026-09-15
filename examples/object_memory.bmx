@@ -160,7 +160,7 @@ Local checksPassed:Int = defaults And counter And Not missing And ..
 	finalReclaimed > 0 And CollectionCount() = automaticAfterStress + 2 And ..
 	LastReclaimedObjectCount() = finalReclaimed And LastReclaimedBytes() = finalReclaimed * 12 And ..
 	highWaterAfterStress > usedAfterReplacement And highWaterAfterStress <= ArenaCapacity() And ..
-	reusableAfterStress > 0 And ..
+	reusableAfterStress > 0 And HeapIntegrityValid() And ..
 	FinalizerPendingCount() = 0 And ..
 	RootFrameCount() = 1 And RootSlotCount() = 6 And ..
 	ObjectRootCount() = 0 And InvalidReferenceCount() = 0 And ..

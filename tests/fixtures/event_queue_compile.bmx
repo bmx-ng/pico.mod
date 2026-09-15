@@ -2,6 +2,7 @@ SuperStrict
 
 Framework BRL.EventQueue
 Import Pico.Hardware.GPIO
+Import Pico.Hardware.GPIOEvents
 
 Function GPIOEventTimestamp:ULong(source:TGPIOIRQSource, event:TEvent)
 	If source And event And event.source = source Then Return GPIOIRQTimeUS(event)

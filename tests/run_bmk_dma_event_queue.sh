@@ -22,6 +22,6 @@ if [[ -z "$toolchain" ]]; then
 fi
 
 symbols="$("$toolchain/bin/arm-none-eabi-nm" "$work_dir/dma-event-queue-pico2.elf")"
-rg -q ' T bmx_pico_event_take$' <<<"$symbols"
+rg -q ' T bmx_embedded_event_take$' <<<"$symbols"
 rg -q ' T bmx_pico_dma_set_event_token$' <<<"$symbols"
-rg -q ' T bmx_pico_system_wait$' <<<"$symbols"
+rg -q ' T bmx_embedded_system_wait$' <<<"$symbols"

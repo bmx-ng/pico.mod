@@ -12,6 +12,17 @@ Module Pico.System.Device
 ModuleInfo "Version: 0.1"
 ModuleInfo "License: zlib/libpng"
 
+Const DeviceResetReasonUnknown:Int = 0
+Const DeviceResetReasonPowerOn:Int = 1
+Const DeviceResetReasonExternal:Int = 2
+Const DeviceResetReasonSoftware:Int = 3
+Const DeviceResetReasonWatchdog:Int = 4
+Const DeviceResetReasonPanic:Int = 5
+Const DeviceResetReasonDeepSleep:Int = 6
+Const DeviceResetReasonBrownout:Int = 7
+Const DeviceResetReasonPowerGlitch:Int = 8
+Const DeviceResetReasonCPULockup:Int = 9
+
 Extern "C"
 	Rem
 	bbdoc: Returns the board's 64-bit unique identifier as 16 uppercase hexadecimal characters.
@@ -24,6 +35,22 @@ Extern "C"
 	bbdoc: Returns the board's 64-bit unique identifier as eight bytes in SDK order.
 	End Rem
 	Function UniqueBoardIDBytes:Byte[]() = "bmx_pico_unique_board_id_bytes"
+
+	Rem
+	bbdoc: Portable alias for UniqueBoardID.
+	End Rem
+	Function UniqueDeviceID:String() = "bmx_embedded_unique_device_id"
+
+	Rem
+	bbdoc: Portable alias for UniqueBoardIDBytes.
+	End Rem
+	Function UniqueDeviceIDBytes:Byte[]() = "bmx_embedded_unique_device_id_bytes"
+
+	Rem
+	bbdoc: Returns the normalized reason for the last reset.
+	about: Pico currently distinguishes watchdog resets from an otherwise unknown cause.
+	End Rem
+	Function DeviceResetReason:Int() = "bmx_embedded_device_reset_reason"
 
 	Rem
 	bbdoc: Returns True when the BOOTSEL button is currently pressed.
@@ -48,4 +75,19 @@ Extern "C"
 	End Rem
 	Function RebootToBootsel:Int(activityPin:Int = -1, activityPinActiveLow:Int = False, disableMassStorage:Int = False, disablePicoboot:Int = False) = "bmx_pico_device_reboot_to_bootsel"
 End Extern
+
+Function DeviceResetReasonName:String(reason:Int)
+	Select reason
+		Case DeviceResetReasonPowerOn Return "Power on"
+		Case DeviceResetReasonExternal Return "External"
+		Case DeviceResetReasonSoftware Return "Software"
+		Case DeviceResetReasonWatchdog Return "Watchdog"
+		Case DeviceResetReasonPanic Return "Panic"
+		Case DeviceResetReasonDeepSleep Return "Deep sleep"
+		Case DeviceResetReasonBrownout Return "Brownout"
+		Case DeviceResetReasonPowerGlitch Return "Power glitch"
+		Case DeviceResetReasonCPULockup Return "CPU lockup"
+	End Select
+	Return "Unknown"
+End Function
 ?
