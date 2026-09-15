@@ -65,13 +65,17 @@ Wend
 Build it for a Pico 2:
 
 ```sh
-bmk makeapp -a -r -l pico -g arm -board pico2 -o blink blink.bmx
+bmk makeapp -a -r -board pico2 -o blink blink.bmx
 ```
+
+Because `pico2` is a definition in the configured Pico SDK, `bmk` infers the
+`pico` target and the currently supported `arm` architecture. You may still
+supply `-l pico -g arm` explicitly in scripts.
 
 Add `-x` to upload, verify, reset, and start it through `picotool`:
 
 ```sh
-bmk makeapp -a -r -x -l pico -g arm -board pico2 -o blink blink.bmx
+bmk makeapp -a -r -x -board pico2 -o blink blink.bmx
 ```
 
 For the first upload, or when the running firmware does not expose automatic
@@ -91,8 +95,8 @@ retail board is never inferred solely from the detected silicon.
 
 | Option | Meaning |
 | --- | --- |
-| `-l pico` | Select the Pico target |
-| `-g arm` | Select the ARM architecture |
+| `-l pico` | Explicitly select the Pico target; inferred from a recognised `-board` |
+| `-g arm` | Explicitly select the ARM architecture; inferred for current Pico targets |
 | `-board pico` | Build for RP2040/Pico |
 | `-board pico2` | Build for RP2350/Pico 2; this is the default |
 | `-board <name>` | Use another board definition from the selected Pico SDK |
