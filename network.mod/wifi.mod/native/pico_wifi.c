@@ -35,6 +35,9 @@ static volatile uint32_t bmx_pico_wifi_event_put;
 static volatile uint32_t bmx_pico_wifi_event_get;
 static volatile uint32_t bmx_pico_wifi_dropped_event_count;
 static bool bmx_pico_wifi_is_initialized;
+static bool bmx_pico_wifi_claimed;
+static bool bmx_pico_ble_claimed;
+static bool bmx_pico_wifi_ap_active;
 static bool bmx_pico_wifi_scan_requested;
 static int32_t bmx_pico_wifi_last_link_status;
 
@@ -93,25 +96,46 @@ static int bmx_pico_wifi_scan_callback(void *environment,
     return 0;
 }
 
-int32_t bmx_embedded_wifi_initialize(uint32_t country) {
-    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+static int32_t bmx_pico_radio_initialize(uint32_t country) {
     if (bmx_pico_wifi_is_initialized) return PICO_OK;
 
     int32_t result = cyw43_arch_init_with_country(country);
     if (result != PICO_OK) return result;
-    cyw43_arch_enable_sta_mode();
     bmx_pico_wifi_event_put = 0;
     bmx_pico_wifi_event_get = 0;
     bmx_pico_wifi_dropped_event_count = 0;
     bmx_pico_wifi_scan_requested = false;
     bmx_pico_wifi_last_link_status = CYW43_LINK_DOWN;
     bmx_pico_wifi_is_initialized = true;
+    bmx_pico_wifi_ap_active = false;
     return PICO_OK;
 }
 
-int32_t bmx_embedded_wifi_deinitialize(void) {
+int32_t bmx_embedded_wifi_initialize(uint32_t country) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    int32_t result = bmx_pico_radio_initialize(country);
+    if (result == PICO_OK && !bmx_pico_wifi_claimed) {
+        bmx_pico_wifi_event_put = bmx_pico_wifi_event_get = 0;
+        bmx_pico_wifi_dropped_event_count = 0;
+        bmx_pico_wifi_scan_requested = false;
+        bmx_pico_wifi_last_link_status = CYW43_LINK_DOWN;
+        cyw43_arch_enable_sta_mode();
+        bmx_pico_wifi_claimed = true;
+    }
+    return result;
+}
+
+int32_t bmx_pico_radio_acquire_ble(void) {
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    int32_t result = bmx_pico_radio_initialize(CYW43_COUNTRY_WORLDWIDE);
+    if (result == PICO_OK) bmx_pico_ble_claimed = true;
+    return result;
+}
+
+static int32_t bmx_pico_radio_deinitialize(void) {
     if (!bmx_pico_wifi_is_initialized) return PICO_OK;
+    if (bmx_pico_wifi_claimed || bmx_pico_ble_claimed) return PICO_OK;
+    if (bmx_pico_wifi_ap_active) return PICO_ERROR_RESOURCE_IN_USE;
     if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
         return PICO_ERROR_RESOURCE_IN_USE;
     if (bmx_embedded_net_active_socket_count &&
@@ -119,12 +143,44 @@ int32_t bmx_embedded_wifi_deinitialize(void) {
         return PICO_ERROR_RESOURCE_IN_USE;
     cyw43_arch_deinit();
     bmx_pico_wifi_is_initialized = false;
+    bmx_pico_wifi_ap_active = false;
     bmx_pico_wifi_event_put = 0;
     bmx_pico_wifi_event_get = 0;
     return PICO_OK;
 }
 
+int32_t bmx_embedded_wifi_deinitialize(void) {
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    if (!bmx_pico_wifi_claimed) return PICO_OK;
+    if (bmx_pico_wifi_ap_active) return PICO_ERROR_RESOURCE_IN_USE;
+    if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
+        return PICO_ERROR_RESOURCE_IN_USE;
+    if (bmx_embedded_net_active_socket_count &&
+            bmx_embedded_net_active_socket_count())
+        return PICO_ERROR_RESOURCE_IN_USE;
+    if (bmx_pico_ble_claimed) cyw43_arch_disable_sta_mode();
+    bmx_pico_wifi_claimed = false;
+    bmx_pico_wifi_event_put = bmx_pico_wifi_event_get = 0;
+    return bmx_pico_radio_deinitialize();
+}
+
 int32_t bmx_embedded_wifi_initialized(void) {
+    return bmx_pico_wifi_claimed;
+}
+
+int32_t bmx_pico_radio_release_ble(void) {
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    bmx_pico_ble_claimed = false;
+    return bmx_pico_radio_deinitialize();
+}
+
+int32_t bmx_pico_radio_ble_release_allowed(void) {
+    if (!bmx_pico_wifi_claimed && bmx_embedded_net_active_socket_count &&
+            bmx_embedded_net_active_socket_count()) return PICO_ERROR_RESOURCE_IN_USE;
+    return PICO_OK;
+}
+
+int32_t bmx_pico_radio_is_initialized(void) {
     return bmx_pico_wifi_is_initialized;
 }
 
@@ -141,7 +197,7 @@ int32_t bmx_pico_wifi_get_led(void) {
 
 int32_t bmx_embedded_wifi_start_scan(void) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
-    if (!bmx_pico_wifi_is_initialized) return PICO_ERROR_INVALID_STATE;
+    if (!bmx_pico_wifi_claimed) return PICO_ERROR_INVALID_STATE;
     if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
         return PICO_ERROR_RESOURCE_IN_USE;
 
@@ -155,7 +211,7 @@ int32_t bmx_embedded_wifi_start_scan(void) {
 int32_t bmx_embedded_wifi_connect(const uint8_t *ssid, uint32_t ssid_length,
         const uint8_t *password, uint32_t password_length, uint32_t authentication) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
-    if (!bmx_pico_wifi_is_initialized) return PICO_ERROR_INVALID_STATE;
+    if (!bmx_pico_wifi_claimed) return PICO_ERROR_INVALID_STATE;
     if (!ssid || !ssid_length || ssid_length > 32u ||
             (password_length && !password)) return PICO_ERROR_INVALID_ARG;
     if (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state))
@@ -177,17 +233,17 @@ int32_t bmx_embedded_wifi_connect(const uint8_t *ssid, uint32_t ssid_length,
 
 int32_t bmx_embedded_wifi_disconnect(void) {
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
-    if (!bmx_pico_wifi_is_initialized) return PICO_ERROR_INVALID_STATE;
+    if (!bmx_pico_wifi_claimed) return PICO_ERROR_INVALID_STATE;
     return cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
 }
 
 int32_t bmx_embedded_wifi_scan_active(void) {
-    return bmx_pico_wifi_is_initialized &&
+    return bmx_pico_wifi_claimed &&
         (bmx_pico_wifi_scan_requested || cyw43_wifi_scan_active(&cyw43_state));
 }
 
 int32_t bmx_embedded_wifi_link_status(void) {
-    if (!bmx_pico_wifi_is_initialized) return CYW43_LINK_DOWN;
+    if (!bmx_pico_wifi_claimed) return CYW43_LINK_DOWN;
     cyw43_arch_lwip_begin();
     int32_t status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
     cyw43_arch_lwip_end();
@@ -195,7 +251,7 @@ int32_t bmx_embedded_wifi_link_status(void) {
 }
 
 void bmx_embedded_wifi_service(void) {
-    if (!bmx_pico_wifi_is_initialized) return;
+    if (!bmx_pico_wifi_claimed) return;
     if (bmx_pico_wifi_scan_requested && !cyw43_wifi_scan_active(&cyw43_state)) {
         BMXEmbeddedWiFiEvent event = {0};
         event.kind = BMX_PICO_WIFI_EVENT_SCAN_COMPLETE;
@@ -249,7 +305,7 @@ int32_t bmx_embedded_wifi_take_event(int32_t *kind, uint8_t *ssid,
 }
 
 static uint32_t bmx_pico_wifi_live_address(int selector) {
-    if (!bmx_pico_wifi_is_initialized || get_core_num() != 0) return 0;
+    if (!bmx_pico_wifi_claimed || get_core_num() != 0) return 0;
     cyw43_arch_lwip_begin();
     struct netif *interface = &cyw43_state.netif[CYW43_ITF_STA];
     const ip4_addr_t *value = selector == 0 ? netif_ip4_addr(interface) :
@@ -274,3 +330,84 @@ uint32_t bmx_embedded_wifi_ipv4_gateway(void) {
 uint32_t bmx_embedded_wifi_dropped_events(void) {
     return bmx_pico_wifi_dropped_event_count;
 }
+
+int32_t bmx_pico_wifi_start_access_point(const uint8_t *ssid,
+        uint32_t ssid_length, const uint8_t *password, uint32_t password_length,
+        uint32_t authentication, uint32_t channel) {
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    if (!bmx_pico_wifi_claimed) return PICO_ERROR_INVALID_STATE;
+    if (bmx_pico_wifi_ap_active) return PICO_ERROR_RESOURCE_IN_USE;
+    if (!ssid || !ssid_length || ssid_length > 32u ||
+            (password_length && !password) || channel < 1u || channel > 11u)
+        return PICO_ERROR_INVALID_ARG;
+    uint32_t auth = bmx_pico_wifi_authentication(authentication);
+    if (password_length == 0u) {
+        if (authentication != 0u) return PICO_ERROR_INVALID_ARG;
+        auth = CYW43_AUTH_OPEN;
+    } else if (password_length < 8u || password_length > 63u ||
+            (auth != CYW43_AUTH_WPA_TKIP_PSK &&
+             auth != CYW43_AUTH_WPA2_AES_PSK &&
+             auth != CYW43_AUTH_WPA2_MIXED_PSK)) {
+        return PICO_ERROR_INVALID_ARG;
+    }
+    char ssid_string[33];
+    char password_string[64];
+    if (memchr(ssid, 0, ssid_length) ||
+            (password_length && memchr(password, 0, password_length)))
+        return PICO_ERROR_INVALID_ARG;
+    memcpy(ssid_string, ssid, ssid_length);
+    ssid_string[ssid_length] = 0;
+    if (password_length) {
+        memcpy(password_string, password, password_length);
+        password_string[password_length] = 0;
+    }
+    cyw43_wifi_ap_set_channel(&cyw43_state, channel);
+    cyw43_arch_enable_ap_mode(ssid_string,
+        password_length ? password_string : NULL, auth);
+    memset(password_string, 0, sizeof(password_string));
+    if (!(cyw43_state.itf_state & (1u << CYW43_ITF_AP)))
+        return PICO_ERROR_GENERIC;
+    bmx_pico_wifi_ap_active = true;
+    return PICO_OK;
+}
+
+int32_t bmx_pico_wifi_stop_access_point(void) {
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    if (!bmx_pico_wifi_claimed) return PICO_ERROR_INVALID_STATE;
+    if (!bmx_pico_wifi_ap_active) return PICO_OK;
+    if (bmx_embedded_net_active_socket_count &&
+            bmx_embedded_net_active_socket_count()) return PICO_ERROR_RESOURCE_IN_USE;
+    cyw43_arch_disable_ap_mode();
+    bmx_pico_wifi_ap_active = false;
+    return PICO_OK;
+}
+
+int32_t bmx_pico_wifi_access_point_active(void) {
+    return bmx_pico_wifi_claimed && bmx_pico_wifi_ap_active;
+}
+
+int32_t bmx_pico_wifi_access_point_client_count(uint32_t *count) {
+    if (!count) return PICO_ERROR_INVALID_ARG;
+    if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
+    if (!bmx_pico_wifi_access_point_active()) return PICO_ERROR_INVALID_STATE;
+    int number = 16;
+    uint8_t macs[16 * 6];
+    cyw43_wifi_ap_get_stas(&cyw43_state, &number, macs);
+    *count = number < 0 ? 0u : (uint32_t)number;
+    return PICO_OK;
+}
+
+static uint32_t bmx_pico_wifi_ap_address(int selector) {
+    if (!bmx_pico_wifi_access_point_active() || get_core_num() != 0) return 0;
+    cyw43_arch_lwip_begin();
+    struct netif *interface = &cyw43_state.netif[CYW43_ITF_AP];
+    const ip4_addr_t *value = selector == 0 ? netif_ip4_addr(interface) :
+        selector == 1 ? netif_ip4_netmask(interface) : netif_ip4_gw(interface);
+    uint32_t result = bmx_pico_wifi_pack_address(value);
+    cyw43_arch_lwip_end();
+    return result;
+}
+
+uint32_t bmx_pico_wifi_access_point_ipv4_address(void) { return bmx_pico_wifi_ap_address(0); }
+uint32_t bmx_pico_wifi_access_point_ipv4_netmask(void) { return bmx_pico_wifi_ap_address(1); }
+uint32_t bmx_pico_wifi_access_point_ipv4_gateway(void) { return bmx_pico_wifi_ap_address(2); }

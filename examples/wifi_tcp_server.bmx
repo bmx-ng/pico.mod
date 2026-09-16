@@ -49,7 +49,7 @@ While True
 					While client.ReadAvail() > 0
 						Local amount:Int = client.ReadAvail()
 						If amount > request.length Then amount = request.length
-						If client.Recv(request, amount) <= 0 Then Exit
+						If client.Recv(Varptr request[0], Size_T(amount)) <= 0 Then Exit
 					Wend
 					Local stream:TSocketStream = TSocketStream.Create(client)
 					stream.WriteString("HTTP/1.0 200 OK~r~nContent-Type: text/plain~r~n" + ..

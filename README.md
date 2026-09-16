@@ -237,7 +237,7 @@ PIO2, extended FIFO joins, and GPIO-base selection.
 pacing timers, chaining, ring addressing, priority, byte swapping, and quiet
 IRQs. The PIO and DMA examples include standalone and combined transfer paths.
 
-## Wi-Fi and sockets
+## Wi-Fi, SoftAP, BLE, and sockets
 
 On wireless board definitions, `Pico.Network.WiFi` initializes the CYW43 radio,
 controls its GPIO 0 output, and delivers asynchronous scan and link-state events
@@ -248,6 +248,49 @@ address, netmask, and gateway.
 system until DHCP completes and can retry transient join failures, which is
 useful when several mesh access points advertise the same SSID.
 
+`Pico.Network.WiFi` also provides `WiFiStartAccessPoint`,
+`WiFiStopAccessPoint`, `WiFiAccessPointActive`, client count, and AP IPv4
+address, netmask, and gateway queries. Call `WiFiInitialize` first. Open and
+WPA/WPA2 PSK access points are supported, with channels 1–11 and a maximum
+32-byte SSID. WPA passwords must be 8–63 bytes. The CYW43/lwIP stack starts
+its AP DHCP server and uses its SDK default AP address. SoftAP can coexist
+with station mode; use a channel compatible with the station's access point.
+There is no NAT or routed Internet sharing. Close all sockets before stopping
+the AP or deinitializing Wi-Fi. [`wifi_softap.bmx`](examples/wifi_softap.bmx)
+is a long-running AP example, and
+[`wifi_softap_regression.bmx`](examples/wifi_softap_regression.bmx) checks
+start, validation, IPv4 state, station coexistence, and teardown on hardware.
+
+`Pico.Network.BLE` imports the shared `Embedded.Network.BLE` API and uses the
+Pico SDK BTstack/CYW43 backend. It currently supports radio lifecycle,
+asynchronous scan results, advertising, central and peripheral connection
+events, one connection's metadata, MTU exchange, GATT client service,
+characteristic, and descriptor discovery plus short reads and writes. The
+GATT server supports up to eight services and 16 characteristics, each with a
+value of up to 512 bytes, including reads, writes, subscription events,
+notifications, and indications. Define the GATT table before `BLEInitialize`.
+An advertisement can include one service UUID. Prepared writes and encrypted
+or authenticated GATT attributes are not yet supported.
+BTstack callbacks copy records into an eight-entry native queue; BlitzMax
+events are created only by `PollSystem` or `WaitSystem`. Scan and advertising
+deadlines also require event-loop servicing. The dropped-event counter reports
+queue overflow. Scan duplicate filtering is not currently implemented.
+
+Security and bonding, PHY controls, connection parameter updates, central
+notification subscriptions, 32-bit service UUIDs, and long GATT client reads
+are currently unavailable; their calls return `PicoBLEUnsupported` (-100).
+The peripheral GATT table can be rebuilt between BLE sessions. Only one live
+BLE connection is tracked. Pico W BLE builds use a 160 KiB
+automatic managed heap to leave more SRAM for BTstack; a custom `-heap` value
+still takes precedence. [`ble_scan.bmx`](examples/ble_scan.bmx),
+[`ble_client.bmx`](examples/ble_client.bmx),
+[`ble_peripheral.bmx`](examples/ble_peripheral.bmx), and
+[`ble_wifi_coexist.bmx`](examples/ble_wifi_coexist.bmx) provide hardware
+checks. For a concurrent station and BLE test, set the station credentials in
+a local copy of the coexistence example. Initialize Wi-Fi before BLE when a
+specific Wi-Fi country code is required, because the first CYW43 initialization
+selects it.
+
 Importing `Pub.Net`, directly or through `BRL.Socket`, enables IPv4 DNS, TCP
 clients and servers, UDP, readiness polling, and `BRL.SocketStream`. The adapter
 supports eight simultaneous sockets, four queued TCP accepts per listener, a
@@ -255,8 +298,8 @@ supports eight simultaneous sockets, four queued TCP accepts per listener, a
 UDP socket. Close all sockets before calling `WiFiDeinitialize`.
 
 Applications which do not import networking do not link lwIP, the wireless
-driver, or its firmware. IPv6, TLS, and higher-level HTTP clients are not yet
-provided.
+driver, BTstack, or its firmware. IPv6, TLS, and higher-level HTTP clients are
+not yet provided.
 
 ## Power and debugging
 
