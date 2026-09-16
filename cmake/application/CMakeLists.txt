@@ -63,14 +63,16 @@ if (NOT BLITZMAX_PICO_PSRAM_MODULE_INDEX EQUAL -1)
 endif()
 
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_wifi_wifi" BLITZMAX_PICO_WIFI_MODULE_INDEX)
+list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_ble_ble" BLITZMAX_PICO_BLE_MODULE_INDEX)
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pub_net_net" BLITZMAX_PICO_NET_MODULE_INDEX)
 set(BLITZMAX_PICO_WIFI_MODULE_ENABLED FALSE)
 set(BLITZMAX_PICO_NETWORK_STACK_ENABLED FALSE)
 if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
+        NOT BLITZMAX_PICO_BLE_MODULE_INDEX EQUAL -1 OR
         NOT BLITZMAX_PICO_NET_MODULE_INDEX EQUAL -1)
     if (NOT PICO_CYW43_SUPPORTED)
         message(FATAL_ERROR
-            "Pico Wi-Fi and socket networking require a Pico SDK board definition with CYW43 wireless support; "
+            "Pico Wi-Fi, BLE, and socket networking require a Pico SDK board definition with CYW43 wireless support; "
             "PICO_BOARD='${PICO_BOARD}' does not provide it")
     endif()
     if (NOT TARGET pico_cyw43_arch_lwip_threadsafe_background)
@@ -79,16 +81,27 @@ if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
     endif()
     set(BLITZMAX_PICO_NETWORK_STACK_ENABLED TRUE)
 endif()
-if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1)
+if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
+        NOT BLITZMAX_PICO_BLE_MODULE_INDEX EQUAL -1)
     set(BLITZMAX_PICO_WIFI_MODULE_ENABLED TRUE)
     set(BLITZMAX_PICO_WIFI_SOURCE
         "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native/pico_wifi.c")
+endif()
+if (NOT BLITZMAX_PICO_BLE_MODULE_INDEX EQUAL -1)
+    if (NOT TARGET pico_btstack_cyw43 OR NOT TARGET pico_btstack_ble)
+        message(FATAL_ERROR "Pico BLE requires Pico SDK BTstack/CYW43 support")
+    endif()
+    set(BLITZMAX_PICO_BLE_SOURCE
+        "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/ble.mod/native/pico_ble.c")
 endif()
 
 if (PICO_PLATFORM STREQUAL "rp2040")
     set(BLITZMAX_PICO_RESOLVED_FLOAT_ABI "soft")
     math(EXPR BLITZMAX_PICO_RAM_BYTES "256 * 1024")
     math(EXPR BLITZMAX_PICO_AUTO_ARENA_SIZE "192 * 1024")
+    if (BLITZMAX_PICO_BLE_SOURCE)
+        math(EXPR BLITZMAX_PICO_AUTO_ARENA_SIZE "160 * 1024")
+    endif()
 elseif (PICO_PLATFORM MATCHES "^rp2350-arm-")
     if (BLITZMAX_PICO_FLOAT_ABI STREQUAL "hard")
         set(BLITZMAX_PICO_RESOLVED_FLOAT_ABI "hard")
@@ -247,6 +260,7 @@ add_executable(${BLITZMAX_OUTPUT_NAME}
     ${BLITZMAX_PICO_POWER_SOURCE}
     ${BLITZMAX_PICO_PSRAM_SOURCE}
     ${BLITZMAX_PICO_WIFI_SOURCE}
+    ${BLITZMAX_PICO_BLE_SOURCE}
     "${BRL_BLITZ_ROOT}/ryu/ryu/f2s.c"
     "${BRL_BLITZ_ROOT}/ryu/ryu/d2s.c"
 )
@@ -263,6 +277,11 @@ if (BLITZMAX_PICO_NETWORK_STACK_ENABLED)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_cyw43_arch_lwip_threadsafe_background)
     target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
         "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native")
+endif()
+if (BLITZMAX_PICO_BLE_SOURCE)
+    target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_btstack_cyw43 pico_btstack_ble)
+    target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
+        "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/ble.mod/native")
 endif()
 if ((BLITZMAX_PICO_PSRAM_MODULE_ENABLED OR BLITZMAX_PICO_ARENA_IN_PSRAM) AND
         NOT PICO_PLATFORM STREQUAL "rp2040")
