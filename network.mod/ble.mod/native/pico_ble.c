@@ -39,6 +39,8 @@ static bool advertising_auto_restart, advertising_resume_pending;
 static uint32_t advertising_duration;
 static uint32_t scan_deadline, advertising_deadline, connect_deadline;
 static char device_name[30];
+/* BTstack retains these pointers until the HCI advertising commands complete. */
+static uint8_t advertising_data[31], scan_response_data[31];
 static hci_con_handle_t connection_handle = HCI_CON_HANDLE_INVALID;
 static uint8_t connection_address[6];
 static int connection_address_type, connection_role;
@@ -50,6 +52,8 @@ enum { QUERY_NONE, QUERY_SERVICES, QUERY_CHARACTERISTICS, QUERY_DESCRIPTORS,
 static int gatt_query, gatt_parent, gatt_attribute;
 static bool gatt_read_received;
 static uint8_t gatt_write_value[512];
+static gatt_client_notification_t client_notification;
+static bool client_notification_registered;
 
 #define MAX_GATT_SERVICES 8
 #define MAX_GATT_CHARACTERISTICS 16
@@ -134,14 +138,14 @@ static int server_write(hci_con_handle_t handle, uint16_t attribute,
     if (ccc) {
         if (length != 2) return ATT_ERROR_INVALID_ATTRIBUTE_VALUE_LENGTH;
         item->subscriptions = buffer[0] & 3;
-        event.kind = 9;
+        event.kind = 8;
         event.notifications = (item->subscriptions & 1u) != 0;
         event.indications = (item->subscriptions & 2u) != 0;
     } else {
         if (length > item->capacity) return ATT_ERROR_INVALID_ATTRIBUTE_VALUE_LENGTH;
         memcpy(item->value, buffer, length);
         item->value_length = length;
-        event.kind = 8;
+        event.kind = 7;
         event.data_length = length;
         memcpy(event.data, buffer, length);
     }
@@ -250,9 +254,12 @@ static bool queue_critical_event(const BLEEvent *event) {
 
 static void encode_uuid(BLEEvent *event, uint16_t uuid16, const uint8_t *uuid128) {
     if (uuid16) {
-        snprintf((char *)event->data, sizeof(event->data), "%04x", uuid16);
+        snprintf((char *)event->data, sizeof(event->data), "0x%04x", uuid16);
     } else {
         strncpy((char *)event->data, uuid128_to_str(uuid128), sizeof(event->data) - 1u);
+        for (char *digit = (char *)event->data; *digit; ++digit) {
+            if (*digit >= 'A' && *digit <= 'F') *digit += 'a' - 'A';
+        }
     }
     event->data_length = strlen((char *)event->data);
 }
@@ -313,6 +320,25 @@ static void gatt_packet_handler(uint8_t packet_type, uint16_t channel,
             memcpy(event.data, gatt_event_characteristic_value_query_result_get_value(packet),
                 event.data_length);
             gatt_read_received = queue_event(&event);
+            break;
+        case GATT_EVENT_NOTIFICATION:
+        case GATT_EVENT_INDICATION:
+            event.kind = 18;
+            event.indications = hci_event_packet_get_type(packet) == GATT_EVENT_INDICATION;
+            if (event.indications) {
+                event.connection_handle = gatt_event_indication_get_handle(packet);
+                event.attribute_id = gatt_event_indication_get_value_handle(packet);
+                event.data_length = gatt_event_indication_get_value_length(packet);
+                if (event.data_length > (int)sizeof(event.data)) event.data_length = sizeof(event.data);
+                memcpy(event.data, gatt_event_indication_get_value(packet), event.data_length);
+            } else {
+                event.connection_handle = gatt_event_notification_get_handle(packet);
+                event.attribute_id = gatt_event_notification_get_value_handle(packet);
+                event.data_length = gatt_event_notification_get_value_length(packet);
+                if (event.data_length > (int)sizeof(event.data)) event.data_length = sizeof(event.data);
+                memcpy(event.data, gatt_event_notification_get_value(packet), event.data_length);
+            }
+            queue_critical_event(&event);
             break;
         case GATT_EVENT_QUERY_COMPLETE:
             event.status = gatt_event_query_complete_get_att_status(packet);
@@ -388,6 +414,11 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
                 connection_interval = gap_subevent_le_connection_complete_get_conn_interval(packet);
                 connection_latency = gap_subevent_le_connection_complete_get_conn_latency(packet);
                 connection_timeout = gap_subevent_le_connection_complete_get_supervision_timeout(packet);
+                if (connection_role == 0) {
+                    gatt_client_listen_for_characteristic_value_updates(&client_notification,
+                        gatt_packet_handler, connection_handle, NULL);
+                    client_notification_registered = true;
+                }
             }
             queue_critical_event(&event);
             break;
@@ -399,6 +430,10 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
             event.address_type = connection_address_type;
             event.properties = connection_role;
             memcpy(event.address, connection_address, 6);
+            if (client_notification_registered) {
+                gatt_client_stop_listening_for_characteristic_value_updates(&client_notification);
+                client_notification_registered = false;
+            }
             connection_handle = HCI_CON_HANDLE_INVALID;
             gatt_query = QUERY_NONE;
             for (int index = 0; index < characteristic_count; ++index)
@@ -432,6 +467,7 @@ int32_t bmx_embedded_ble_initialize(const uint8_t *name, uint32_t name_length) {
     advertising_resume_pending = false;
     connection_handle = HCI_CON_HANDLE_INVALID;
     gatt_query = QUERY_NONE;
+    client_notification_registered = false;
     initialized = true;
     cyw43_arch_lwip_begin();
     if (!stack_configured) {
@@ -519,7 +555,12 @@ int32_t bmx_embedded_ble_start_advertising(int32_t service_id, uint32_t duration
     if (get_core_num() != 0) return PICO_ERROR_NOT_PERMITTED;
     if (service_id < 0 || service_id > service_count) return PICO_ERROR_INVALID_ARG;
     if (advertising) return PICO_ERROR_RESOURCE_IN_USE;
-    uint8_t data[31] = {2, 1, 6};
+    memset(advertising_data, 0, sizeof(advertising_data));
+    memset(scan_response_data, 0, sizeof(scan_response_data));
+    uint8_t *data = advertising_data;
+    data[0] = 2;
+    data[1] = 1;
+    data[2] = 6;
     uint8_t length = 3;
     if (service_id) {
         const BLEService *service = &services[service_id - 1];
@@ -529,19 +570,28 @@ int32_t bmx_embedded_ble_start_advertising(int32_t service_id, uint32_t duration
             data[length++] = service->uuid[index];
     }
     size_t name_length = strlen(device_name);
-    if (name_length > sizeof(data) - length - 2u)
-        name_length = sizeof(data) - length - 2u;
-    if (name_length) {
-        data[length++] = name_length + 1;
-        data[length++] = 9;
-        memcpy(data + length, device_name, name_length);
-        length += name_length;
+    size_t primary_name_length = name_length;
+    if (primary_name_length > sizeof(advertising_data) - length - 2u)
+        primary_name_length = sizeof(advertising_data) - length - 2u;
+    if (primary_name_length) {
+        data[length++] = primary_name_length + 1;
+        data[length++] = primary_name_length == name_length ? 9 : 8;
+        memcpy(data + length, device_name, primary_name_length);
+        length += primary_name_length;
+    }
+    uint8_t scan_response_length = 0;
+    if (name_length > primary_name_length) {
+        scan_response_data[0] = name_length + 1;
+        scan_response_data[1] = 9;
+        memcpy(scan_response_data + 2, device_name, name_length);
+        scan_response_length = name_length + 2;
     }
     bd_addr_t null_address = {0};
     cyw43_arch_lwip_begin();
     gap_advertisements_set_params(0x30, 0x60, connectable ? 0 : 3,
         0, null_address, 7, 0);
     gap_advertisements_set_data(length, data);
+    gap_scan_response_set_data(scan_response_length, scan_response_data);
     gap_advertisements_enable(1);
     cyw43_arch_lwip_end();
     advertising = true;
@@ -638,7 +688,7 @@ int32_t bmx_embedded_ble_take_event(int32_t *kind, int32_t *status,
         event.kind = 3;
     } else if (advertising_complete_pending) {
         advertising_complete_pending = false;
-        event.kind = 7;
+        event.kind = 9;
     } else if (connect_timeout_pending) {
         connect_timeout_pending = false;
         event.kind = 5;
