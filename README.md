@@ -37,6 +37,27 @@ Custom definitions can be supplied through `PICO_BOARD_HEADER_DIRS` and
 beneath the user's home directory. A `picotool` version matching the SDK is
 recommended.
 
+### Installing tools with the VS Code extension
+
+The official [Raspberry Pi Pico VS Code extension](https://github.com/raspberrypi/pico-vscode)
+is one way to install the Pico SDK and build tools, including on a fresh Windows
+machine. Install the extension published by Raspberry Pi. If it prompts you to
+install Python, do so and restart VS Code. Then open the extension's **Raspberry
+Pi Pico Project** sidebar and create a **New C/C++ Project** or **New Project from
+Example** for a Pico board. Creating that first project starts the SDK
+and toolchain installation; installing the extension alone may not. Select Pico
+SDK 2.3.0 or newer, and wait for the downloads to finish. The generated C/C++
+project is only a setup step: build BlitzMax applications with `bmk` as shown
+below, not inside that project.
+
+The extension normally installs under `%USERPROFILE%\.pico-sdk` on Windows and
+`$HOME/.pico-sdk` on macOS and Linux, with versioned `sdk`, `toolchain`, and
+tool directories. `bmk` searches this managed layout automatically. If it
+cannot find a required tool, check that the first project setup completed and
+use the [tool configuration](#tool-configuration) options to point at a custom
+installation. Raspberry Pi's [getting-started guide](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf)
+walks through the extension's project-creation step.
+
 ## Quick start
 
 Create `blink.bmx`:
@@ -79,7 +100,7 @@ bmk makeapp -a -r -x -board pico2 -o blink blink.bmx
 ```
 
 For the first upload, or when the running firmware does not expose automatic
-USB reset, hold BOOTSEL while connecting the board and run the command again.
+USB reset, hold **BOOTSEL** while connecting the board and run the command again.
 The generated UF2 may also be copied to the BOOTSEL drive manually.
 
 Inspect a connected RP-series device without building or flashing:
@@ -114,6 +135,13 @@ retail board is never inferred solely from the detected silicon.
 
 After linking, `bmk` reports flash, internal RAM, managed-heap placement,
 PSRAM, and the applicable reserves and headroom.
+
+## Building with VS Code
+
+Alternately, you can configure build options in VS Code via the BlitzMax extension,
+and use the provided *Build* or *Build and Run* commands to compile and load the firmware onto the connected Pico board.
+
+Choose Platform **Raspberry Pi Pico**. A **Pico Options** section will appear where you can configure the various build options for the Pico target.
 
 ## Tool configuration
 
