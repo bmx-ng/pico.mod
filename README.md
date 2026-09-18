@@ -43,8 +43,8 @@ The official [Raspberry Pi Pico VS Code extension](https://github.com/raspberryp
 is one way to install the Pico SDK and build tools, including on a fresh Windows
 machine. Install the extension published by Raspberry Pi. If it prompts you to
 install Python, do so and restart VS Code. Then open the extension's **Raspberry
-Pi Pico Project** sidebar and create a **New Project** or **New Project from
-Examples** for a C/C++ Pico board. Creating that first project starts the SDK
+Pi Pico Project** sidebar and create a **New C/C++ Project** or **New Project from
+Example** for a Pico board. Creating that first project starts the SDK
 and toolchain installation; installing the extension alone may not. Select Pico
 SDK 2.3.0 or newer, and wait for the downloads to finish. The generated C/C++
 project is only a setup step: build BlitzMax applications with `bmk` as shown
@@ -100,7 +100,7 @@ bmk makeapp -a -r -x -board pico2 -o blink blink.bmx
 ```
 
 For the first upload, or when the running firmware does not expose automatic
-USB reset, hold BOOTSEL while connecting the board and run the command again.
+USB reset, hold **BOOTSEL** while connecting the board and run the command again.
 The generated UF2 may also be copied to the BOOTSEL drive manually.
 
 Inspect a connected RP-series device without building or flashing:
@@ -135,6 +135,13 @@ retail board is never inferred solely from the detected silicon.
 
 After linking, `bmk` reports flash, internal RAM, managed-heap placement,
 PSRAM, and the applicable reserves and headroom.
+
+## Building with VS Code
+
+Alternately, you can configure build options in VS Code via the BlitzMax extension,
+and use the provided *Build* or *Build and Run* commands to compile and load the firmware onto the connected Pico board.
+
+Choose Platform **Raspberry Pi Pico**. A **Pico Options** section will appear where you can configure the various build options for the Pico target.
 
 ## Tool configuration
 
