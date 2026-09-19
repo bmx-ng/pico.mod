@@ -10,6 +10,7 @@
    code shape and does not add a call on allocation or exception paths. */
 #define BMX_EMBEDDED_PLATFORM_CONTEXT_VALID() \
     (get_core_num() == 0 && __get_current_exception() == 0)
+#define BMX_EMBEDDED_PLATFORM_CONTEXT_INDEX() get_core_num()
 #define BMX_EMBEDDED_PLATFORM_PANIC(message) do { \
     puts(message); \
     panic("BlitzMax runtime error"); \
