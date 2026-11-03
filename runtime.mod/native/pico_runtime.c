@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+#include <stdatomic.h>
+#endif
+
 #include "blitzmax/pico_runtime.h"
 #include "blitzmax/embedded_adc.h"
 #include "blitzmax/embedded_device.h"
@@ -63,6 +67,32 @@
 #endif
 
 #define BMX_EMBEDDED_MEMORY_ALIGNMENT 16u
+
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+/* Stage 1 supports one owner on core 0 and one registered worker on core 1. */
+static atomic_uint bmx_pico_gc_worker_bound;
+
+int32_t bmx_pico_managed_gc_context_valid(void) {
+    if (__get_current_exception() != 0) return 0;
+    unsigned core = get_core_num();
+    return core == 0u || (core == 1u &&
+        atomic_load_explicit(&bmx_pico_gc_worker_bound, memory_order_acquire));
+}
+
+int32_t bmx_pico_managed_gc_bind(uint32_t slot) {
+    if (__get_current_exception() != 0 || slot != get_core_num()) return 0;
+    if (slot == 0u) return 1;
+    if (slot != 1u) return 0;
+    unsigned expected = 0u;
+    return atomic_compare_exchange_strong_explicit(&bmx_pico_gc_worker_bound,
+        &expected, 1u, memory_order_release, memory_order_relaxed);
+}
+
+void bmx_pico_managed_gc_unbind(uint32_t slot) {
+    if (slot == 1u && get_core_num() == 1u)
+        atomic_store_explicit(&bmx_pico_gc_worker_bound, 0u, memory_order_release);
+}
+#endif
 
 uint32_t bmx_embedded_random_uint32(void) {
     return get_rand_32();
