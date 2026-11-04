@@ -1666,32 +1666,64 @@ int32_t bmx_pico_i2c_write_blocking(int32_t controller, uint32_t address,
         void *data, int32_t length, int32_t no_stop) {
     i2c_inst_t *i2c = bmx_pico_i2c_instance(controller);
     if (!bmx_pico_i2c_transfer_valid(i2c, address, data, length)) return PICO_ERROR_INVALID_ARG;
-    return i2c_write_blocking(i2c, (uint8_t)address, (const uint8_t *)data,
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        data, (size_t)length, NULL, 0u);
+#endif
+    int32_t result = i2c_write_blocking(i2c, (uint8_t)address, (const uint8_t *)data,
         (size_t)length, no_stop != 0);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_i2c_read_blocking(int32_t controller, uint32_t address,
         void *data, int32_t length, int32_t no_stop) {
     i2c_inst_t *i2c = bmx_pico_i2c_instance(controller);
     if (!bmx_pico_i2c_transfer_valid(i2c, address, data, length)) return PICO_ERROR_INVALID_ARG;
-    return i2c_read_blocking(i2c, (uint8_t)address, (uint8_t *)data,
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        data, (size_t)length, NULL, 0u);
+#endif
+    int32_t result = i2c_read_blocking(i2c, (uint8_t)address, (uint8_t *)data,
         (size_t)length, no_stop != 0);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_i2c_write_timeout_us(int32_t controller, uint32_t address,
         void *data, int32_t length, int32_t no_stop, uint32_t timeout_us) {
     i2c_inst_t *i2c = bmx_pico_i2c_instance(controller);
     if (!bmx_pico_i2c_transfer_valid(i2c, address, data, length)) return PICO_ERROR_INVALID_ARG;
-    return i2c_write_timeout_us(i2c, (uint8_t)address, (const uint8_t *)data,
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && timeout_us &&
+        bmx_embedded_gc_enter_native_safe_for_buffers(data, (size_t)length, NULL, 0u);
+#endif
+    int32_t result = i2c_write_timeout_us(i2c, (uint8_t)address, (const uint8_t *)data,
         (size_t)length, no_stop != 0, timeout_us);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_i2c_read_timeout_us(int32_t controller, uint32_t address,
         void *data, int32_t length, int32_t no_stop, uint32_t timeout_us) {
     i2c_inst_t *i2c = bmx_pico_i2c_instance(controller);
     if (!bmx_pico_i2c_transfer_valid(i2c, address, data, length)) return PICO_ERROR_INVALID_ARG;
-    return i2c_read_timeout_us(i2c, (uint8_t)address, (uint8_t *)data,
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && timeout_us &&
+        bmx_embedded_gc_enter_native_safe_for_buffers(data, (size_t)length, NULL, 0u);
+#endif
+    int32_t result = i2c_read_timeout_us(i2c, (uint8_t)address, (uint8_t *)data,
         (size_t)length, no_stop != 0, timeout_us);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 uint32_t bmx_pico_i2c_write_available(int32_t controller) {
@@ -1708,7 +1740,14 @@ int32_t bmx_pico_i2c_write_raw_blocking(int32_t controller,
         void *data, int32_t length) {
     i2c_inst_t *i2c = bmx_pico_i2c_instance(controller);
     if (!bmx_pico_i2c_transfer_valid(i2c, 0, data, length)) return PICO_ERROR_INVALID_ARG;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        data, (size_t)length, NULL, 0u);
+#endif
     i2c_write_raw_blocking(i2c, (const uint8_t *)data, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return length;
 }
 
@@ -1716,7 +1755,14 @@ int32_t bmx_pico_i2c_read_raw_blocking(int32_t controller,
         void *data, int32_t length) {
     i2c_inst_t *i2c = bmx_pico_i2c_instance(controller);
     if (!bmx_pico_i2c_transfer_valid(i2c, 0, data, length)) return PICO_ERROR_INVALID_ARG;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        data, (size_t)length, NULL, 0u);
+#endif
     i2c_read_raw_blocking(i2c, (uint8_t *)data, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return length;
 }
 
@@ -1846,15 +1892,31 @@ int32_t bmx_pico_spi_write_read_blocking(int32_t controller, void *source,
         void *destination, int32_t length) {
     spi_inst_t *spi = bmx_pico_spi_instance(controller);
     if (!spi || length < 0 || (length && (!source || !destination))) return PICO_ERROR_INVALID_ARG;
-    return spi_write_read_blocking(spi, (const uint8_t *)source,
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        source, (size_t)length, destination, (size_t)length);
+#endif
+    int32_t result = spi_write_read_blocking(spi, (const uint8_t *)source,
         (uint8_t *)destination, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_spi_write_blocking(int32_t controller, void *source, int32_t length) {
     spi_inst_t *spi = bmx_pico_spi_instance(controller);
     if (!bmx_pico_spi_transfer_valid(spi, source, NULL, length) || (length && !source))
         return PICO_ERROR_INVALID_ARG;
-    return spi_write_blocking(spi, (const uint8_t *)source, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        source, (size_t)length, NULL, 0u);
+#endif
+    int32_t result = spi_write_blocking(spi, (const uint8_t *)source, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_spi_read_blocking(int32_t controller, uint32_t repeated_data,
@@ -1862,22 +1924,47 @@ int32_t bmx_pico_spi_read_blocking(int32_t controller, uint32_t repeated_data,
     spi_inst_t *spi = bmx_pico_spi_instance(controller);
     if (!bmx_pico_spi_transfer_valid(spi, NULL, destination, length) ||
             repeated_data > 0xffu || (length && !destination)) return PICO_ERROR_INVALID_ARG;
-    return spi_read_blocking(spi, (uint8_t)repeated_data,
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        destination, (size_t)length, NULL, 0u);
+#endif
+    int32_t result = spi_read_blocking(spi, (uint8_t)repeated_data,
         (uint8_t *)destination, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_spi_write16_read16_blocking(int32_t controller, uint16_t *source,
         uint16_t *destination, int32_t length) {
     spi_inst_t *spi = bmx_pico_spi_instance(controller);
     if (!spi || length < 0 || (length && (!source || !destination))) return PICO_ERROR_INVALID_ARG;
-    return spi_write16_read16_blocking(spi, source, destination, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        source, (size_t)length * sizeof(*source),
+        destination, (size_t)length * sizeof(*destination));
+#endif
+    int32_t result = spi_write16_read16_blocking(spi, source, destination, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_spi_write16_blocking(int32_t controller, uint16_t *source, int32_t length) {
     spi_inst_t *spi = bmx_pico_spi_instance(controller);
     if (!bmx_pico_spi_transfer_valid(spi, source, NULL, length) || (length && !source))
         return PICO_ERROR_INVALID_ARG;
-    return spi_write16_blocking(spi, source, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        source, (size_t)length * sizeof(*source), NULL, 0u);
+#endif
+    int32_t result = spi_write16_blocking(spi, source, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_pico_spi_read16_blocking(int32_t controller, uint32_t repeated_data,
@@ -1885,7 +1972,15 @@ int32_t bmx_pico_spi_read16_blocking(int32_t controller, uint32_t repeated_data,
     spi_inst_t *spi = bmx_pico_spi_instance(controller);
     if (!bmx_pico_spi_transfer_valid(spi, NULL, destination, length) ||
             repeated_data > 0xffffu || (length && !destination)) return PICO_ERROR_INVALID_ARG;
-    return spi_read16_blocking(spi, (uint16_t)repeated_data, destination, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        destination, (size_t)length * sizeof(*destination), NULL, 0u);
+#endif
+    int32_t result = spi_read16_blocking(spi, (uint16_t)repeated_data, destination, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 void *bmx_pico_spi_data_register_address(int32_t controller) {
@@ -1966,11 +2061,19 @@ static int32_t bmx_pico_i2c_write_read_until(int32_t controller, uint32_t addres
     if (!bmx_pico_i2c_transfer_valid(i2c, address, write_data, write_length) ||
             !bmx_pico_i2c_transfer_valid(i2c, address, read_data, read_length) ||
             !write_length || !read_length) return PICO_ERROR_INVALID_ARG;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = bmx_embedded_gc_enter_native_safe_for_buffers(
+        write_data, (size_t)write_length, read_data, (size_t)read_length);
+#endif
     int32_t result = i2c_write_blocking_until(i2c, (uint8_t)address,
         (const uint8_t *)write_data, (size_t)write_length, true, until);
-    if (result != write_length) return result;
-    return i2c_read_blocking_until(i2c, (uint8_t)address, (uint8_t *)read_data,
-        (size_t)read_length, false, until);
+    if (result == write_length)
+        result = i2c_read_blocking_until(i2c, (uint8_t)address, (uint8_t *)read_data,
+            (size_t)read_length, false, until);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_embedded_i2c_write_read_blocking(int32_t controller, uint32_t address,
@@ -2213,14 +2316,28 @@ static int32_t bmx_pico_uart_buffer_valid(uart_inst_t *uart, const void *buffer,
 int32_t bmx_pico_uart_write_blocking(int32_t controller, void *source, int32_t length) {
     uart_inst_t *uart = bmx_pico_uart_instance(controller);
     if (!bmx_pico_uart_buffer_valid(uart, source, length)) return PICO_ERROR_INVALID_ARG;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        source, (size_t)length, NULL, 0u);
+#endif
     uart_write_blocking(uart, (const uint8_t *)source, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return length;
 }
 
 int32_t bmx_pico_uart_read_blocking(int32_t controller, void *destination, int32_t length) {
     uart_inst_t *uart = bmx_pico_uart_instance(controller);
     if (!bmx_pico_uart_buffer_valid(uart, destination, length)) return PICO_ERROR_INVALID_ARG;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && bmx_embedded_gc_enter_native_safe_for_buffers(
+        destination, (size_t)length, NULL, 0u);
+#endif
     uart_read_blocking(uart, (uint8_t *)destination, (size_t)length);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return length;
 }
 
@@ -2230,14 +2347,22 @@ int32_t bmx_pico_uart_read_timeout_us(int32_t controller, void *destination,
     if (!bmx_pico_uart_buffer_valid(uart, destination, length)) return PICO_ERROR_INVALID_ARG;
     uint8_t *bytes = (uint8_t *)destination;
     uint64_t deadline = time_us_64() + timeout_us;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = length > 0 && timeout_us &&
+        bmx_embedded_gc_enter_native_safe_for_buffers(destination, (size_t)length, NULL, 0u);
+#endif
     int32_t count = 0;
     while (count < length) {
         while (!uart_is_readable(uart)) {
-            if (time_us_64() >= deadline) return count;
+            if (time_us_64() >= deadline) goto done;
             tight_loop_contents();
         }
         bytes[count++] = (uint8_t)uart_get_hw(uart)->dr;
     }
+done:
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return count;
 }
 
@@ -2376,8 +2501,7 @@ int32_t bmx_embedded_uart_read_blocking(int32_t controller,
 int32_t bmx_embedded_uart_read_timeout_us(int32_t controller,
         void *destination, int32_t length, uint32_t timeout_us) {
     if (!bmx_pico_uart_is_enabled(controller)) return PICO_ERROR_INVALID_ARG;
-    return bmx_pico_uart_read_timeout_us(controller, destination, length,
-        timeout_us);
+    return bmx_pico_uart_read_timeout_us(controller, destination, length, timeout_us);
 }
 
 int32_t bmx_embedded_uart_read_available(int32_t controller,
