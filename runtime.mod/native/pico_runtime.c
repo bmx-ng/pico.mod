@@ -3422,6 +3422,25 @@ static BMXPicoDeferredEvent bmx_pico_deferred_events[BMX_PICO_EVENT_CAPACITY];
 static volatile uint32_t bmx_pico_deferred_event_put;
 static volatile uint32_t bmx_pico_deferred_event_get;
 static volatile uint32_t bmx_pico_deferred_event_dropped;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+static atomic_flag bmx_pico_deferred_event_lock = ATOMIC_FLAG_INIT;
+#endif
+
+static uint32_t bmx_pico_event_lock_enter(void) {
+    uint32_t interrupt_state = save_and_disable_interrupts();
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    while (atomic_flag_test_and_set_explicit(&bmx_pico_deferred_event_lock,
+            memory_order_acquire)) tight_loop_contents();
+#endif
+    return interrupt_state;
+}
+
+static void bmx_pico_event_lock_leave(uint32_t interrupt_state) {
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    atomic_flag_clear_explicit(&bmx_pico_deferred_event_lock, memory_order_release);
+#endif
+    restore_interrupts(interrupt_state);
+}
 
 int32_t bmx_embedded_event_post(uint32_t token, uint32_t event_data,
         uint32_t detail) {
@@ -3450,10 +3469,10 @@ static int32_t bmx_pico_event_post_locked(uint32_t token, uint32_t event_data,
 
 int32_t bmx_embedded_event_post_ex(uint32_t token, uint32_t event_data,
         uint32_t event_mods, uint32_t event_x, uint32_t event_y) {
-    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t interrupt_state = bmx_pico_event_lock_enter();
     int32_t posted = bmx_pico_event_post_locked(token, event_data, event_mods,
         event_x, event_y);
-    restore_interrupts(interrupt_state);
+    bmx_pico_event_lock_leave(interrupt_state);
     __sev();
     return posted;
 }
@@ -3466,10 +3485,10 @@ int32_t bmx_embedded_event_post_from_isr(uint32_t token,
 int32_t bmx_embedded_event_post_from_isr_ex(uint32_t token,
         uint32_t event_data, uint32_t event_mods, uint32_t event_x,
         uint32_t event_y) {
-    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t interrupt_state = bmx_pico_event_lock_enter();
     int32_t posted = bmx_pico_event_post_locked(token, event_data, event_mods,
         event_x, event_y);
-    restore_interrupts(interrupt_state);
+    bmx_pico_event_lock_leave(interrupt_state);
     __sev();
     return posted;
 }
@@ -3478,15 +3497,15 @@ int32_t bmx_embedded_event_take(uint32_t *token, uint32_t *event_data,
         uint32_t *event_mods, uint32_t *event_x, uint32_t *event_y) {
     if (!token || !event_data || !event_mods || !event_x || !event_y ||
             get_core_num() != 0) return 0;
-    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t interrupt_state = bmx_pico_event_lock_enter();
     uint32_t get = bmx_pico_deferred_event_get;
     if (get == bmx_pico_deferred_event_put) {
-        restore_interrupts(interrupt_state);
+        bmx_pico_event_lock_leave(interrupt_state);
         return 0;
     }
     BMXPicoDeferredEvent event = bmx_pico_deferred_events[get & BMX_PICO_EVENT_MASK];
     bmx_pico_deferred_event_get = get + 1u;
-    restore_interrupts(interrupt_state);
+    bmx_pico_event_lock_leave(interrupt_state);
     *token = event.token;
     *event_data = event.event_data;
     *event_mods = event.event_mods;
@@ -3496,14 +3515,21 @@ int32_t bmx_embedded_event_take(uint32_t *token, uint32_t *event_data,
 }
 
 uint32_t bmx_embedded_event_pending(void) {
-    uint32_t interrupt_state = save_and_disable_interrupts();
+    uint32_t interrupt_state = bmx_pico_event_lock_enter();
     uint32_t pending = bmx_pico_deferred_event_put - bmx_pico_deferred_event_get;
-    restore_interrupts(interrupt_state);
+    bmx_pico_event_lock_leave(interrupt_state);
     return pending;
 }
 
 uint32_t bmx_embedded_event_dropped(void) {
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    uint32_t interrupt_state = bmx_pico_event_lock_enter();
+    uint32_t dropped = bmx_pico_deferred_event_dropped;
+    bmx_pico_event_lock_leave(interrupt_state);
+    return dropped;
+#else
     return bmx_pico_deferred_event_dropped;
+#endif
 }
 
 int32_t bmx_pico_event_post_from_irq(uint32_t token, uint32_t event_data,
