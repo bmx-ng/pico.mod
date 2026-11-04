@@ -754,11 +754,23 @@ uint64_t bmx_embedded_time_milliseconds(void) {
 }
 
 void bmx_embedded_sleep_milliseconds(uint32_t milliseconds) {
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = milliseconds && bmx_embedded_gc_enter_native_safe();
+#endif
     bmx_pico_sleep_ms(milliseconds);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
 }
 
 void bmx_embedded_sleep_microseconds(uint64_t microseconds) {
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = microseconds && bmx_embedded_gc_enter_native_safe();
+#endif
     bmx_pico_sleep_us(microseconds);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
 }
 
 enum {
@@ -2339,7 +2351,14 @@ int32_t bmx_embedded_uart_is_readable(int32_t controller) {
 
 int32_t bmx_embedded_uart_is_readable_within_us(int32_t controller,
         uint32_t timeout_us) {
-    return bmx_pico_uart_is_readable_within_us(controller, timeout_us);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = timeout_us && bmx_embedded_gc_enter_native_safe();
+#endif
+    int32_t result = bmx_pico_uart_is_readable_within_us(controller, timeout_us);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_embedded_uart_write_blocking(int32_t controller,
@@ -2369,12 +2388,25 @@ int32_t bmx_embedded_uart_read_available(int32_t controller,
 
 int32_t bmx_embedded_uart_put_byte(int32_t controller, uint32_t value) {
     if (!bmx_pico_uart_is_enabled(controller)) return 0;
-    return bmx_pico_uart_put_byte(controller, value);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = bmx_embedded_gc_enter_native_safe();
+#endif
+    int32_t result = bmx_pico_uart_put_byte(controller, value);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
+    return result;
 }
 
 int32_t bmx_embedded_uart_tx_wait_blocking(int32_t controller) {
     if (!bmx_pico_uart_is_enabled(controller)) return 0;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = bmx_embedded_gc_enter_native_safe();
+#endif
     bmx_pico_uart_tx_wait_blocking(controller);
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return 1;
 }
 
@@ -3823,16 +3855,30 @@ uint32_t bmx_pico_dma_timer_dreq(uint32_t timer) {
 }
 
 void bmx_embedded_delay(int32_t milliseconds) {
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (milliseconds > 0) bmx_embedded_sleep_milliseconds((uint32_t)milliseconds);
+#else
     if (milliseconds > 0) sleep_ms((uint32_t)milliseconds);
+#endif
 }
 
 void bmx_embedded_udelay(int32_t microseconds) {
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (microseconds > 0) bmx_embedded_sleep_microseconds((uint64_t)(uint32_t)microseconds);
+#else
     if (microseconds > 0) sleep_us((uint64_t)(uint32_t)microseconds);
+#endif
 }
 
 void bmx_embedded_system_wait(void) {
     if (bmx_embedded_event_pending()) return;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = bmx_embedded_gc_enter_native_safe();
+#endif
     __wfe();
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
 }
 
 void bmx_embedded_system_wake(void) {
