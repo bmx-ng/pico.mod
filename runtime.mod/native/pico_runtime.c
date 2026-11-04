@@ -181,6 +181,10 @@ void __attribute__((noinline, used)) bmx_embedded_debug_stop(void) {
 
 int64_t bmx_pico_stdio_read(void *buffer, int64_t count) {
     if (!buffer || count <= 0) return 0;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = (uint64_t)count <= SIZE_MAX &&
+        bmx_embedded_gc_enter_native_safe_for_buffers(buffer, (size_t)count, NULL, 0u);
+#endif
     uint8_t *bytes = (uint8_t *)buffer;
     int64_t read = 0;
     while (read < count) {
@@ -188,19 +192,35 @@ int64_t bmx_pico_stdio_read(void *buffer, int64_t count) {
         if (character < 0) break;
         bytes[read++] = (uint8_t)character;
     }
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return read;
 }
 
 int64_t bmx_pico_stdio_write(void *buffer, int64_t count) {
     if (!buffer || count <= 0) return 0;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = (uint64_t)count <= SIZE_MAX &&
+        bmx_embedded_gc_enter_native_safe_for_buffers(buffer, (size_t)count, NULL, 0u);
+#endif
     const uint8_t *bytes = (const uint8_t *)buffer;
     int64_t written = 0;
     while (written < count && stdio_putchar_raw(bytes[written]) >= 0) ++written;
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
     return written;
 }
 
 void bmx_pico_stdio_flush(void) {
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    int native_safe = bmx_embedded_gc_enter_native_safe();
+#endif
     stdio_flush();
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+    if (native_safe) bmx_embedded_gc_leave_native_safe();
+#endif
 }
 
 uint32_t bmx_pico_default_led_pin(void) {

@@ -9,6 +9,8 @@ about: Importing this module installs LittleFS as the default BRL.FileSystem
 backend. Ordinary paths and the file:: and littlefs:: protocols address the
 filesystem. A blank reserved region is formatted automatically; existing
 unrecognised data is never formatted automatically.
+Use the filesystem on the owner core; its flash operations do not run on the
+managed worker core.
 End Rem
 Module Pico.Storage.LittleFS
 ?pico
