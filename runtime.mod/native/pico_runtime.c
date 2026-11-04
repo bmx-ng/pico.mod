@@ -4,6 +4,7 @@
 
 #if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
 #include <stdatomic.h>
+#include "pico/multicore.h"
 #endif
 
 #include "blitzmax/pico_runtime.h"
@@ -69,7 +70,7 @@
 #define BMX_EMBEDDED_MEMORY_ALIGNMENT 16u
 
 #if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
-/* Stage 1 supports one owner on core 0 and one registered worker on core 1. */
+/* Opt-in GC reserves one owner on core 0 and one registered worker on core 1. */
 static atomic_uint bmx_pico_gc_worker_bound;
 
 int32_t bmx_pico_managed_gc_context_valid(void) {
@@ -91,6 +92,22 @@ int32_t bmx_pico_managed_gc_bind(uint32_t slot) {
 void bmx_pico_managed_gc_unbind(uint32_t slot) {
     if (slot == 1u && get_core_num() == 1u)
         atomic_store_explicit(&bmx_pico_gc_worker_bound, 0u, memory_order_release);
+}
+
+int32_t bmx_pico_managed_gc_worker_start(void (*entry)(void)) {
+    if (!entry || get_core_num() != 0u || __get_current_exception() != 0 ||
+        atomic_load_explicit(&bmx_pico_gc_worker_bound, memory_order_acquire)) return 0;
+    /* The opt-in runtime owns core 1 for the lifetime of this worker. The
+       previous join resets it before a later launch. */
+    multicore_launch_core1(entry);
+    return 1;
+}
+
+int32_t bmx_pico_managed_gc_worker_join(void) {
+    if (get_core_num() != 0u || __get_current_exception() != 0 ||
+        atomic_load_explicit(&bmx_pico_gc_worker_bound, memory_order_acquire)) return 0;
+    multicore_reset_core1();
+    return 1;
 }
 #endif
 

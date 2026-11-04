@@ -12,9 +12,13 @@
 int32_t bmx_pico_managed_gc_context_valid(void);
 int32_t bmx_pico_managed_gc_bind(uint32_t slot);
 void bmx_pico_managed_gc_unbind(uint32_t slot);
+int32_t bmx_pico_managed_gc_worker_start(void (*entry)(void));
+int32_t bmx_pico_managed_gc_worker_join(void);
 #define BMX_EMBEDDED_PLATFORM_CONTEXT_VALID() bmx_pico_managed_gc_context_valid()
 #define BMX_EMBEDDED_PLATFORM_GC_BIND(slot) bmx_pico_managed_gc_bind(slot)
 #define BMX_EMBEDDED_PLATFORM_GC_UNBIND(slot) bmx_pico_managed_gc_unbind(slot)
+#define BMX_EMBEDDED_PLATFORM_GC_WORKER_START(entry) bmx_pico_managed_gc_worker_start(entry)
+#define BMX_EMBEDDED_PLATFORM_GC_WORKER_JOIN() bmx_pico_managed_gc_worker_join()
 #define BMX_EMBEDDED_PLATFORM_GC_WAIT() tight_loop_contents()
 #else
 #define BMX_EMBEDDED_PLATFORM_CONTEXT_VALID() \
