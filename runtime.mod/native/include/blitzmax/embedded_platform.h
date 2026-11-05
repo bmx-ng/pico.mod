@@ -8,8 +8,22 @@
 /* Target contract consumed by the shared embedded runtime. These operations
    deliberately remain macros so the Pico implementation retains its existing
    code shape and does not add a call on allocation or exception paths. */
+#if defined(BMX_EMBEDDED_MULTICORE) && BMX_EMBEDDED_MULTICORE
+int32_t bmx_pico_managed_gc_context_valid(void);
+int32_t bmx_pico_managed_gc_bind(uint32_t slot);
+void bmx_pico_managed_gc_unbind(uint32_t slot);
+int32_t bmx_pico_managed_gc_worker_start(void (*entry)(void));
+int32_t bmx_pico_managed_gc_worker_join(void);
+#define BMX_EMBEDDED_PLATFORM_CONTEXT_VALID() bmx_pico_managed_gc_context_valid()
+#define BMX_EMBEDDED_PLATFORM_GC_BIND(slot) bmx_pico_managed_gc_bind(slot)
+#define BMX_EMBEDDED_PLATFORM_GC_UNBIND(slot) bmx_pico_managed_gc_unbind(slot)
+#define BMX_EMBEDDED_PLATFORM_GC_WORKER_START(entry) bmx_pico_managed_gc_worker_start(entry)
+#define BMX_EMBEDDED_PLATFORM_GC_WORKER_JOIN() bmx_pico_managed_gc_worker_join()
+#define BMX_EMBEDDED_PLATFORM_GC_WAIT() tight_loop_contents()
+#else
 #define BMX_EMBEDDED_PLATFORM_CONTEXT_VALID() \
     (get_core_num() == 0 && __get_current_exception() == 0)
+#endif
 #define BMX_EMBEDDED_PLATFORM_CONTEXT_INDEX() get_core_num()
 #define BMX_EMBEDDED_PLATFORM_PANIC(message) do { \
     puts(message); \
