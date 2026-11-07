@@ -7,6 +7,7 @@
 #include "lwip/netif.h"
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
+extern int32_t bmx_embedded_mqtt_state(void) __attribute__((weak));
 
 #define BMX_PICO_WIFI_EVENT_CAPACITY 32u
 #define BMX_PICO_WIFI_EVENT_MASK (BMX_PICO_WIFI_EVENT_CAPACITY - 1u)
@@ -141,6 +142,8 @@ static int32_t bmx_pico_radio_deinitialize(void) {
     if (bmx_embedded_net_active_socket_count &&
             bmx_embedded_net_active_socket_count())
         return PICO_ERROR_RESOURCE_IN_USE;
+    if (bmx_embedded_mqtt_state && bmx_embedded_mqtt_state())
+        return PICO_ERROR_RESOURCE_IN_USE;
     cyw43_arch_deinit();
     bmx_pico_wifi_is_initialized = false;
     bmx_pico_wifi_ap_active = false;
@@ -157,6 +160,8 @@ int32_t bmx_embedded_wifi_deinitialize(void) {
         return PICO_ERROR_RESOURCE_IN_USE;
     if (bmx_embedded_net_active_socket_count &&
             bmx_embedded_net_active_socket_count())
+        return PICO_ERROR_RESOURCE_IN_USE;
+    if (bmx_embedded_mqtt_state && bmx_embedded_mqtt_state())
         return PICO_ERROR_RESOURCE_IN_USE;
     if (bmx_pico_ble_claimed) cyw43_arch_disable_sta_mode();
     bmx_pico_wifi_claimed = false;

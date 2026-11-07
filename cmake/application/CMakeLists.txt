@@ -63,13 +63,15 @@ if (NOT BLITZMAX_PICO_PSRAM_MODULE_INDEX EQUAL -1)
 endif()
 
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_wifi_wifi" BLITZMAX_PICO_WIFI_MODULE_INDEX)
+list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_mqtt_mqtt" BLITZMAX_PICO_MQTT_MODULE_INDEX)
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_ble_ble" BLITZMAX_PICO_BLE_MODULE_INDEX)
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pub_net_net" BLITZMAX_PICO_NET_MODULE_INDEX)
 set(BLITZMAX_PICO_WIFI_MODULE_ENABLED FALSE)
 set(BLITZMAX_PICO_NETWORK_STACK_ENABLED FALSE)
 if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
         NOT BLITZMAX_PICO_BLE_MODULE_INDEX EQUAL -1 OR
-        NOT BLITZMAX_PICO_NET_MODULE_INDEX EQUAL -1)
+        NOT BLITZMAX_PICO_NET_MODULE_INDEX EQUAL -1 OR
+        NOT BLITZMAX_PICO_MQTT_MODULE_INDEX EQUAL -1)
     if (NOT PICO_CYW43_SUPPORTED)
         message(FATAL_ERROR
             "Pico Wi-Fi, BLE, and socket networking require a Pico SDK board definition with CYW43 wireless support; "
@@ -80,6 +82,10 @@ if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
             "Pico networking requires the Pico SDK thread-safe background lwIP library")
     endif()
     set(BLITZMAX_PICO_NETWORK_STACK_ENABLED TRUE)
+endif()
+if (NOT BLITZMAX_PICO_MQTT_MODULE_INDEX EQUAL -1)
+    set(BLITZMAX_PICO_MQTT_SOURCE
+        "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/mqtt.mod/native/pico_mqtt.c")
 endif()
 if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
         NOT BLITZMAX_PICO_BLE_MODULE_INDEX EQUAL -1)
@@ -260,6 +266,7 @@ add_executable(${BLITZMAX_OUTPUT_NAME}
     ${BLITZMAX_PICO_POWER_SOURCE}
     ${BLITZMAX_PICO_PSRAM_SOURCE}
     ${BLITZMAX_PICO_WIFI_SOURCE}
+    ${BLITZMAX_PICO_MQTT_SOURCE}
     ${BLITZMAX_PICO_BLE_SOURCE}
     "${BRL_BLITZ_ROOT}/ryu/ryu/f2s.c"
     "${BRL_BLITZ_ROOT}/ryu/ryu/d2s.c"
@@ -299,6 +306,9 @@ if (BLITZMAX_PICO_NETWORK_STACK_ENABLED)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_cyw43_arch_lwip_threadsafe_background)
     target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
         "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native")
+endif()
+if (BLITZMAX_PICO_MQTT_SOURCE)
+    target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_lwip_mqtt)
 endif()
 if (BLITZMAX_PICO_BLE_SOURCE)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_btstack_cyw43 pico_btstack_ble)

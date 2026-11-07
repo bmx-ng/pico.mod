@@ -26,6 +26,7 @@
 #define LWIP_ICMP 1
 #define LWIP_UDP 1
 #define LWIP_TCP 1
+#define LWIP_MQTT 1
 #define LWIP_DHCP 1
 #define LWIP_DNS 1
 #define LWIP_NETIF_HOSTNAME 1
