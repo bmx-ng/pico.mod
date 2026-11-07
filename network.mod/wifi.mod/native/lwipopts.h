@@ -17,6 +17,8 @@
 #define MEMP_NUM_TCP_PCB 4
 #define MEMP_NUM_TCP_PCB_LISTEN 2
 #define MEMP_NUM_TCP_SEG 16
+/* lwIP's MQTT client schedules one timer in addition to the core timers. */
+#define MEMP_NUM_SYS_TIMEOUT (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 1)
 #define PBUF_POOL_SIZE 8
 
 #define LWIP_IPV4 1
@@ -26,6 +28,7 @@
 #define LWIP_ICMP 1
 #define LWIP_UDP 1
 #define LWIP_TCP 1
+#define LWIP_MQTT 1
 #define LWIP_DHCP 1
 #define LWIP_DNS 1
 #define LWIP_NETIF_HOSTNAME 1
