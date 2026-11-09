@@ -585,6 +585,22 @@ int32_t bmx_embedded_gpio_is_pull_capable(uint32_t gpio) {
     return bmx_embedded_gpio_is_valid(gpio);
 }
 
+int32_t bmx_embedded_gpio_is_pull_up_capable(uint32_t gpio) {
+    return bmx_embedded_gpio_is_valid(gpio);
+}
+
+int32_t bmx_embedded_gpio_is_pull_down_capable(uint32_t gpio) {
+    return bmx_embedded_gpio_is_valid(gpio);
+}
+
+int32_t bmx_embedded_gpio_is_drive_strength_configurable(uint32_t gpio) {
+    return bmx_embedded_gpio_is_output_capable(gpio);
+}
+
+int32_t bmx_embedded_gpio_is_irq_capable(uint32_t gpio) {
+    return bmx_embedded_gpio_is_valid(gpio);
+}
+
 int32_t bmx_embedded_gpio_init(uint32_t gpio) {
     if (!bmx_embedded_gpio_is_valid(gpio)) return 0;
     bmx_pico_gpio_init(gpio);
