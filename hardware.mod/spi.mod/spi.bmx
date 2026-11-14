@@ -38,8 +38,10 @@ Extern "C"
 	Function SPIDefaultChipSelectPin:UInt() = "bmx_pico_spi_default_csn_pin"
 
 	Rem
-	bbdoc: Selects the SPI function for a valid RX, TX and clock pin set.
-	about: Chip-select pins are deliberately controlled separately with Pico.Hardware.GPIO.
+	bbdoc: Selects the SPI function for a valid data and clock pin set.
+	about: Pass PicoUnavailablePin for an unused RX or TX signal; at least one data
+	signal is required. Chip-select is deliberately controlled separately with
+	Pico.Hardware.GPIO.
 	End Rem
 	Function SPIConfigurePins:Int(controller:Int, rxPin:UInt, txPin:UInt, clockPin:UInt) = "bmx_pico_spi_configure_pins"
 	Function SPIInit:UInt(controller:Int, baudrate:UInt) = "bmx_pico_spi_init"
