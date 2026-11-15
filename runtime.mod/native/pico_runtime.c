@@ -1855,14 +1855,15 @@ static int32_t bmx_pico_spi_pin_valid(int32_t controller, uint32_t pin, uint32_t
 int32_t bmx_pico_spi_configure_pins(int32_t controller, uint32_t rx_pin,
         uint32_t tx_pin, uint32_t sck_pin) {
     if (!bmx_pico_spi_instance(controller) ||
-            !bmx_pico_spi_pin_valid(controller, rx_pin, 0) ||
-            !bmx_pico_spi_pin_valid(controller, tx_pin, 3) ||
+            (rx_pin != UINT32_MAX && !bmx_pico_spi_pin_valid(controller, rx_pin, 0)) ||
+            (tx_pin != UINT32_MAX && !bmx_pico_spi_pin_valid(controller, tx_pin, 3)) ||
+            (rx_pin == UINT32_MAX && tx_pin == UINT32_MAX) ||
             !bmx_pico_spi_pin_valid(controller, sck_pin, 2)) return 0;
-    gpio_set_function(rx_pin, GPIO_FUNC_SPI);
-    gpio_set_function(tx_pin, GPIO_FUNC_SPI);
+    if (rx_pin != UINT32_MAX) gpio_set_function(rx_pin, GPIO_FUNC_SPI);
+    if (tx_pin != UINT32_MAX) gpio_set_function(tx_pin, GPIO_FUNC_SPI);
     gpio_set_function(sck_pin, GPIO_FUNC_SPI);
-    gpio_disable_pulls(rx_pin);
-    gpio_disable_pulls(tx_pin);
+    if (rx_pin != UINT32_MAX) gpio_disable_pulls(rx_pin);
+    if (tx_pin != UINT32_MAX) gpio_disable_pulls(tx_pin);
     gpio_disable_pulls(sck_pin);
     return 1;
 }

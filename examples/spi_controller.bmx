@@ -64,6 +64,17 @@ GPIOSetFunction(txPin, GPIOFunctionNull)
 GPIOSetFunction(clockPin, GPIOFunctionNull)
 GPIOSetInput(chipSelectPin)
 
+' A write-only peripheral may omit MISO, leaving that GPIO available for a
+' data/command or other control signal.
+checksPassed :& SPIConfigurePins(controller, PicoUnavailablePin, txPin, clockPin)
+checksPassed :& Not SPIConfigurePins(controller, PicoUnavailablePin, PicoUnavailablePin, clockPin)
+actualRate = SPIInit(controller, 1000000)
+checksPassed :& actualRate >= 990000 And actualRate <= 1010000
+checksPassed :& SPIWriteBlocking(controller, outgoing, 4) = 4
+SPIDeinit(controller)
+GPIOSetFunction(txPin, GPIOFunctionNull)
+GPIOSetFunction(clockPin, GPIOFunctionNull)
+
 ' Exercise independent configuration of the second controller as well.
 checksPassed :& SPIConfigurePins(SPIController1, 12, 15, 14)
 actualRate = SPIInit(SPIController1, 2000000)
