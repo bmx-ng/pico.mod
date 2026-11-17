@@ -93,3 +93,16 @@ int32_t bmx_embedded_power_set_sleep_gpio_retention(uint32_t pin,
         int32_t enabled) {
     return bmx_pico_power_set_sleep_gpio_retention(pin, enabled);
 }
+
+int32_t bmx_pico_power_set_sleep_gpio_wake(uint32_t pin, int32_t high,
+        int32_t enabled) {
+    (void)pin;
+    (void)high;
+    (void)enabled;
+    return PICO_ERROR_NOT_FOUND;
+}
+
+int32_t bmx_embedded_power_set_sleep_gpio_wake(uint32_t pin, int32_t high,
+        int32_t enabled) {
+    return bmx_pico_power_set_sleep_gpio_wake(pin, high, enabled);
+}
