@@ -21,6 +21,8 @@ Const PowerCapabilitySleepTimer:UInt = $04
 Const PowerCapabilityDormantGPIO:UInt = $08
 Const PowerCapabilityDormantTimer:UInt = $10
 Const PowerCapabilityLowLeakagePins:UInt = $20
+Const PowerCapabilitySleepGPIORetention:UInt = $40
+Const PowerCapabilitySleepGPIOWake:UInt = $80
 
 Rem
 bbdoc: Results returned by low-power operations.
@@ -88,6 +90,20 @@ Extern "C"
 	affected peripherals after waking. A set bit preserves that GPIO's configuration.
 	End Rem
 	Function SetUnusedPinsLowLeakage:EPowerResult(excludeMask:ULong = 0) = "bmx_pico_power_set_unused_pins_low_leakage"
+
+	Rem
+	bbdoc: Enables or disables retention of a GPIO's output state during returning low-power sleep.
+	param: GPIO number whose configured output state is to be retained.
+	param: True to retain the GPIO during subsequent sleeps; False to stop retaining it.
+	returns: Unavailable until equivalent Pico retention semantics have been verified.
+	End Rem
+	Function SetSleepGPIORetention:EPowerResult(pin:UInt, enabled:Int = True) = "bmx_pico_power_set_sleep_gpio_retention"
+
+	Rem
+	bbdoc: Enables or disables a GPIO level as a returning low-power sleep wake source.
+	returns: Unavailable until equivalent Pico returning-sleep semantics have been implemented.
+	End Rem
+	Function SetSleepGPIOWake:EPowerResult(pin:UInt, high:Int, enabled:Int = True) = "bmx_pico_power_set_sleep_gpio_wake"
 End Extern
 
 Rem
