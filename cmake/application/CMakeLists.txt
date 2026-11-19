@@ -66,6 +66,7 @@ list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_wifi_wifi" BL
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_mqtt_mqtt" BLITZMAX_PICO_MQTT_MODULE_INDEX)
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_ble_ble" BLITZMAX_PICO_BLE_MODULE_INDEX)
 list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_pub_net_net" BLITZMAX_PICO_NET_MODULE_INDEX)
+list(FIND BLITZMAX_PICO_MODULE_INITIALIZERS "__bb_embedded_network_httpstls_httpstls" BLITZMAX_PICO_HTTPSTLS_INDEX)
 set(BLITZMAX_PICO_WIFI_MODULE_ENABLED FALSE)
 set(BLITZMAX_PICO_NETWORK_STACK_ENABLED FALSE)
 if (NOT BLITZMAX_PICO_WIFI_MODULE_INDEX EQUAL -1 OR
@@ -306,6 +307,16 @@ if (BLITZMAX_PICO_NETWORK_STACK_ENABLED)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_cyw43_arch_lwip_threadsafe_background)
     target_include_directories(${BLITZMAX_OUTPUT_NAME} PRIVATE
         "${BLITZMAX_PICO_SDK}/mod/pico.mod/network.mod/wifi.mod/native")
+endif()
+if (NOT BLITZMAX_PICO_HTTPSTLS_INDEX EQUAL -1)
+    if (NOT TARGET pico_mbedtls)
+        message(FATAL_ERROR "Embedded.Network.HTTPSTLS requires the Pico SDK pico_mbedtls library")
+    endif()
+    target_sources(${BLITZMAX_OUTPUT_NAME} PRIVATE
+        "${EMBEDDED_MODULE_ROOT}/network.mod/httpstls.mod/native/httpstls.c")
+    target_include_directories(pico_mbedtls_headers INTERFACE
+        "${EMBEDDED_MODULE_ROOT}/network.mod/httpstls.mod/native")
+    target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_mbedtls)
 endif()
 if (BLITZMAX_PICO_MQTT_SOURCE)
     target_link_libraries(${BLITZMAX_OUTPUT_NAME} pico_lwip_mqtt)
